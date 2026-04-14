@@ -1,0 +1,2 @@
+# Normalize line endings for text files; avoids CRLF/LF churn across OSes.
+* text=auto eol=lf
