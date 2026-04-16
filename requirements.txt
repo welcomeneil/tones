@@ -1,5 +1,12 @@
-# Install into a venv: python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
+# Native install (no venv): use the same Python you run scripts with.
+#   python3 -m pip install --user -r requirements.txt
+# Omit --user if you prefer a true system-wide install (sometimes needs sudo).
 numpy>=1.24
 matplotlib>=3.7
 pillow==12.2.0
 scipy>=1.10
+# API server (includes uvicorn; `fastapi dev` needs the [standard] extra)
+fastapi[standard]>=0.115
+#
+# Run the app (use this — bare `uvicorn` is often not on PATH with --user installs):
+#   python3 -m uvicorn main:app --reload

@@ -1,11 +1,11 @@
-import numpy as np
+from io import BytesIO
 from PIL import Image
+import numpy as np
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import find_peaks
 
-
-def load_image(path):
-    return Image.open(path)
+def load_image(image_bytes):
+    return Image.open(BytesIO(image_bytes))
 
 def img_to_grayscale(img):
     return img.convert('L')
