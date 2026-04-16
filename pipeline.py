@@ -4,6 +4,9 @@ from PIL import Image
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import find_peaks
 
+#showing myself that i can still code without ai-assistance haha
+#learning new topics, and revisiting old ones to build a drawing-assistance solution
+
 # Convert the original RGB image to grayscale
 def rgb_to_grayscale(img):
     img = Image.open(img)
@@ -32,7 +35,7 @@ grayscale_array = np.array(grayscale_img)
 
 processed_img = load_and_preprocess_image('bust.jpg')
 counts, bin_edges = histogram_of_image(processed_img)
-smoothed_counts = gaussian_filter1d(counts, sigma=0.00000005)
+smoothed_counts = gaussian_filter1d(counts, sigma=0.5)
 valleys, _ = find_peaks(-smoothed_counts)
 
 zone_nums = np.digitize(grayscale_array, bins=valleys)
@@ -49,10 +52,6 @@ print(valleys)
 print(palette)
 plt.imshow(zone_nums)
 plt.show()
-
-
-
-
 
 # plt.plot(smoothed_counts)
 
