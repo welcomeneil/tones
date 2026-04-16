@@ -37,5 +37,8 @@ Thumbs.db
 *.swp
 *.swo
 
-#original code
+# original code
 original_code.py
+
+# asset images
+/assets/
