@@ -1,68 +1,46 @@
 import numpy as np
-import matplotlib.pyplot as plt
 from PIL import Image
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import find_peaks
 
-#showing myself that i can still code without ai-assistance haha
-#learning new topics, and revisiting old ones to build a drawing-assistance solution
 
-# Convert the original RGB image to grayscale
-def rgb_to_grayscale(img):
-    img = Image.open(img)
-    grayscale_img = img.convert('L')
-    return grayscale_img
+def load_image(path):
+    return Image.open(path)
 
-# Flatten the image into a 1D array, since the 2D representation is negligible
-def flatten_image(img):
-    img_array = np.array(img)
-    flat_1d = img_array.flatten()
-    return flat_1d
+def img_to_grayscale(img):
+    return img.convert('L')
 
-# combination of rgb_to_grayscale and flatten_image
-def load_and_preprocess_image(path):
-    grayscale_img = rgb_to_grayscale(path)
-    flat_1d = flatten_image(grayscale_img)
-    return flat_1d
+def flatten_pixels(grayscale_img):
+    return np.array(grayscale_img).flatten()
 
-# Calculate the histogram of the image
-def histogram_of_image(flat_1d):
-    hist = np.histogram(flat_1d, bins=256)
-    return hist
+def compute_luminosity_histogram(flat_pixels):
+    counts, bin_edges = np.histogram(flat_pixels, bins=256)
+    return counts, bin_edges
 
-grayscale_img = rgb_to_grayscale('bust.jpg')
-grayscale_array = np.array(grayscale_img)
+def smooth_luminosity_curve(counts, sigma):
+    return gaussian_filter1d(counts, sigma=sigma)
 
-processed_img = load_and_preprocess_image('bust.jpg')
-counts, bin_edges = histogram_of_image(processed_img)
-smoothed_counts = gaussian_filter1d(counts, sigma=0.5)
-valleys, _ = find_peaks(-smoothed_counts)
+def find_tonal_boundaries(smoothed_curve):
+    boundaries, _ = find_peaks(-smoothed_curve)
+    return boundaries
 
-zone_nums = np.digitize(grayscale_array, bins=valleys)
+def assign_tonal_zones(grayscale_img_array, boundaries):
+    return np.digitize(grayscale_img_array, bins=boundaries)
 
-zones = np.unique(zone_nums)
-palette = [round(np.mean(grayscale_array[zone_nums == zone])) for zone in zones]
+def build_tonal_palette(grayscale_img_array, tonal_zones):
+    zones = np.unique(tonal_zones)
+    return [round(np.mean(grayscale_img_array[tonal_zones == zone])) for zone in zones]
 
-palette_img = np.array([[shade] * 50 for shade in palette], dtype=np.uint8)
-plt.imshow(palette_img, cmap='gray', vmin=0, vmax=255)
-# plt.axis('off')
-# plt.show()
-
-print(valleys)
-print(palette)
-plt.imshow(zone_nums)
-plt.show()
-
-# plt.plot(smoothed_counts)
-
-# 1: 60
-# 1.5: 33
-# 2: 14
-# 2.5: 6
-# 3: 5 , [ 80  96 109 125 145]
-# 3.5: 5, [ 80  95 109 124 145]
-# 4: 5, [ 80  95 109 124 145]
-# 4.5: 3, [ 80 109 146]
-# 5: 3, [ 79 108 146]
-# 5.5: 2, [ 108 146]
-# 6: 2, [ 107 146]
+def run_pipeline(path, sigma=2.0):
+    img = load_image(path)
+    grayscale_img = img_to_grayscale(img)
+    grayscale_img_array = np.array(grayscale_img)
+    
+    flat_pixels = flatten_pixels(grayscale_img)
+    counts, _ = compute_luminosity_histogram(flat_pixels)
+    smoothed_curve = smooth_luminosity_curve(counts, sigma)
+    boundaries = find_tonal_boundaries(smoothed_curve)
+    tonal_zones = assign_tonal_zones(grayscale_img_array, boundaries)
+    palette = build_tonal_palette(grayscale_img_array, tonal_zones)
+    
+    return tonal_zones, palette, boundaries

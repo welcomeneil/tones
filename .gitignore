@@ -36,3 +36,6 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+
+#original code
+original_code.py
