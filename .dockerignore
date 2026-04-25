@@ -1,0 +1,13 @@
+frontend/
+node_modules/
+.next/
+__pycache__/
+**/__pycache__/
+.git/
+.gitignore
+.gitattributes
+assets/
+original_code.py
+.claude/
+.DS_Store
+*.md

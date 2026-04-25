@@ -42,3 +42,6 @@ original_code.py
 
 # asset images
 /assets/
+
+# fly.io
+.fly/
