@@ -35,7 +35,7 @@ export function DropZone({ onFile }: Props) {
           : "border-[var(--border)] hover:border-[var(--muted)]"
       }`}
     >
-      <p className="font-serif text-xl italic text-[var(--foreground)]">
+      <p className="font-serif text-xl text-[var(--foreground)]">
         drop an image, or click to choose
       </p>
       <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">

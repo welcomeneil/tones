@@ -125,7 +125,7 @@ export default function Home() {
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-12 px-6 py-16 sm:px-10 sm:py-24">
       <header className="flex items-start justify-between">
-        <h1 className="font-serif text-3xl italic tracking-tight text-[var(--foreground)]">
+        <h1 className="font-serif text-3xl tracking-tight text-[var(--foreground)]">
           tone zone
         </h1>
         <p className="text-right text-[10px] uppercase tracking-[0.2em] leading-relaxed text-[var(--muted)]">
@@ -177,7 +177,7 @@ export default function Home() {
                   onLockedZoneChange={setLockedZone}
                 />
               ) : (
-                <div className="flex h-64 w-full items-center justify-center text-sm italic text-[var(--muted)]">
+                <div className="flex h-64 w-full items-center justify-center text-sm text-[var(--muted)]">
                   {inFlight ? "analyzing…" : "preparing…"}
                 </div>
               )}
@@ -195,7 +195,7 @@ export default function Home() {
 
         {error && (
           <p className="text-sm text-[var(--foreground)]">
-            <span className="font-mono text-[var(--accent)]">error</span> — {error}
+            <span className="text-[10px] uppercase tracking-[0.2em] text-[var(--accent)]">error</span> — {error}
           </p>
         )}
       </main>
