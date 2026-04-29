@@ -30,8 +30,8 @@ export function PaletteStrip({
             onMouseEnter={() => onHoveredZoneChange(idx)}
             onMouseLeave={() => onHoveredZoneChange(null)}
             onClick={() => onLockedZoneChange(locked ? null : idx)}
-            className={`group relative flex h-12 flex-1 items-end justify-center pb-1 transition-transform ${
-              active ? "scale-y-125" : ""
+            className={`group relative flex h-12 flex-1 origin-bottom items-end justify-center pb-1 transition-transform duration-200 ease-out ${
+              active ? "scale-y-[1.08]" : ""
             }`}
             style={{
               backgroundColor: `rgb(${luminosity}, ${luminosity}, ${luminosity})`,
@@ -45,7 +45,7 @@ export function PaletteStrip({
           >
             <span
               className={`font-mono text-[10px] tabular-nums leading-none transition-opacity ${
-                active ? "opacity-100" : "opacity-60 group-hover:opacity-100"
+                active ? "scale-y-[0.926] opacity-100" : "opacity-60 group-hover:opacity-100"
               }`}
               style={{ color: labelLight ? "#1a1a1a" : "#f5f0e8" }}
             >

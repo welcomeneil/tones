@@ -102,6 +102,9 @@ export default function Home() {
 
   const selectedLum =
     selectedZone !== null && result ? result.palette[selectedZone] ?? null : null;
+  // Munsell value: 0 = black, 10 = white. 255-grayscale → /25.5.
+  const munsellValue =
+    selectedLum !== null ? (selectedLum / 25.5).toFixed(1) : null;
   const paletteSize = result?.palette.length ?? 0;
 
   const onReplace = () => {
@@ -202,14 +205,14 @@ export default function Home() {
           <div className="flex items-center justify-between gap-6">
             <ModeToggle value={viewMode} onChange={setViewMode} disabled={!result} />
             <p className="font-mono text-sm tabular-nums text-[var(--foreground)]">
-              {selectedZone !== null && selectedLum !== null && (
+              {selectedZone !== null && munsellValue !== null && (
                 <>
                   V{selectedZone + 1}/{paletteSize}{" "}
-                  <span className="text-[var(--border)]">·</span> luminosity{" "}
-                  {selectedLum}
+                  <span className="text-[var(--border)]">·</span> value{" "}
+                  {munsellValue}
                   {lockedZone !== null && (
                     <span className="ml-3 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
-                      locked · esc to release
+                      locked · esc
                     </span>
                   )}
                 </>
