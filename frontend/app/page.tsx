@@ -16,17 +16,11 @@ const DEBOUNCE_MS = 250;
 const DEFAULT_SIGMA = 2.0;
 const DEFAULT_N = 5;
 
-// Dev-only: targeted-mode algorithm picker for the kmeans-vs-otsu eye test.
-// Collapse to a single constant once a winner is chosen (task #17).
-type TargetedAlgo = "kmeans" | "otsu";
-const TARGETED_ALGOS: TargetedAlgo[] = ["kmeans", "otsu"];
-
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [blob, setBlob] = useState<Blob | null>(null);
   const [bitmap, setBitmap] = useState<ImageBitmap | null>(null);
   const [algoMode, setAlgoMode] = useState<AlgoMode>("targeted");
-  const [targetedAlgo, setTargetedAlgo] = useState<TargetedAlgo>("kmeans");
   const [n, setN] = useState(DEFAULT_N);
   const [sigma, setSigma] = useState(DEFAULT_SIGMA);
   const [viewMode, setViewMode] = useState<RenderMode>("zones");
@@ -37,8 +31,8 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
-  const selectedZone = hoveredZone ?? lockedZone;
-  const algo: Algorithm = algoMode === "targeted" ? targetedAlgo : "peaks";
+  const selectedZone = lockedZone ?? hoveredZone;
+  const algo: Algorithm = algoMode === "targeted" ? "kmeans" : "peaks";
 
   useEffect(() => {
     if (!file) return;
@@ -129,7 +123,7 @@ export default function Home() {
     <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-12 px-6 py-16 sm:px-10 sm:py-24">
       <header className="flex items-start justify-between">
         <h1 className="font-serif text-3xl italic tracking-tight text-[var(--foreground)]">
-          tonal zones
+          tone zone
         </h1>
         <p className="text-right text-[10px] uppercase tracking-[0.2em] leading-relaxed text-[var(--muted)]">
           a reference tool
@@ -189,52 +183,25 @@ export default function Home() {
             <AlgoToggle value={algoMode} onChange={setAlgoMode} disabled={!blob} />
 
             {algoMode === "targeted" ? (
-              <>
-                <ValueCountPicker value={n} onChange={setN} disabled={!blob} />
-                {/* dev-only: rip out once eye-test winner is chosen (task #17) */}
-                <div className="flex items-baseline gap-6">
-                  <span className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
-                    algo
-                  </span>
-                  <div className="flex gap-4">
-                    {TARGETED_ALGOS.map((a) => {
-                      const active = targetedAlgo === a;
-                      return (
-                        <button
-                          key={a}
-                          type="button"
-                          disabled={!blob}
-                          onClick={() => setTargetedAlgo(a)}
-                          className={`text-xs tracking-wide transition-colors ${
-                            active
-                              ? "text-[var(--foreground)] underline underline-offset-4"
-                              : "text-[var(--muted)] hover:text-[var(--foreground)]"
-                          } ${!blob ? "cursor-not-allowed opacity-40" : ""}`}
-                        >
-                          {a}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </>
+              <ValueCountPicker value={n} onChange={setN} disabled={!blob} />
             ) : (
               <SigmaSlider value={sigma} onChange={setSigma} disabled={!blob} />
             )}
+          </>
+        )}
 
+        {error && (
+          <p className="text-sm text-[var(--foreground)]">
+            <span className="font-mono text-[var(--accent)]">error</span> — {error}
+          </p>
+        )}
+      </main>
+
+      {file && result && (
+        <div className="sticky bottom-0 z-10 flex flex-col gap-3 border-t border-[var(--border)] bg-[var(--background)] py-4">
+          <div className="flex items-center justify-between gap-6">
             <ModeToggle value={viewMode} onChange={setViewMode} disabled={!result} />
-
-            {result && (
-              <PaletteStrip
-                palette={result.palette}
-                selectedZone={selectedZone}
-                lockedZone={lockedZone}
-                onHoveredZoneChange={setHoveredZone}
-                onLockedZoneChange={setLockedZone}
-              />
-            )}
-
-            <p className="h-5 font-mono text-sm tabular-nums text-[var(--foreground)]">
+            <p className="font-mono text-sm tabular-nums text-[var(--foreground)]">
               {selectedZone !== null && selectedLum !== null && (
                 <>
                   V{selectedZone + 1}/{paletteSize}{" "}
@@ -248,18 +215,27 @@ export default function Home() {
                 </>
               )}
             </p>
-          </>
-        )}
-
-        {error && (
-          <p className="text-sm text-[var(--foreground)]">
-            <span className="font-mono text-[var(--accent)]">error</span> — {error}
-          </p>
-        )}
-      </main>
+          </div>
+          <PaletteStrip
+            palette={result.palette}
+            selectedZone={selectedZone}
+            lockedZone={lockedZone}
+            onHoveredZoneChange={setHoveredZone}
+            onLockedZoneChange={setLockedZone}
+          />
+        </div>
+      )}
 
       <footer className="mt-auto border-t border-[var(--border)] pt-6 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
-        classical signal processing · no training, just histograms
+        value-study reference · neil bisht · 2026 ·{" "}
+        <a
+          href="https://github.com/welcomeneil/tones"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline underline-offset-4 hover:text-[var(--foreground)]"
+        >
+          view source
+        </a>
       </footer>
     </div>
   );
