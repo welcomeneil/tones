@@ -100,6 +100,16 @@ export default function Home() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  const [showDim, setShowDim] = useState(false);
+  useEffect(() => {
+    if (!inFlight) {
+      setShowDim(false);
+      return;
+    }
+    const t = setTimeout(() => setShowDim(true), 200);
+    return () => clearTimeout(t);
+  }, [inFlight]);
+
   const selectedLum =
     selectedZone !== null && result ? result.palette[selectedZone] ?? null : null;
   // Munsell value: 0 = black, 10 = white. 255-grayscale → /25.5.
@@ -165,17 +175,30 @@ export default function Home() {
               </button>
             </div>
 
-            <div className="min-h-64">
+            <div className="relative min-h-64">
               {result && bitmap ? (
-                <AnalyzedCanvas
-                  result={result}
-                  referenceBitmap={bitmap}
-                  mode={viewMode}
-                  selectedZone={selectedZone}
-                  lockedZone={lockedZone}
-                  onHoveredZoneChange={setHoveredZone}
-                  onLockedZoneChange={setLockedZone}
-                />
+                <>
+                  <div
+                    className={`transition-opacity duration-200 ${
+                      showDim ? "opacity-40" : "opacity-100"
+                    }`}
+                  >
+                    <AnalyzedCanvas
+                      result={result}
+                      referenceBitmap={bitmap}
+                      mode={viewMode}
+                      selectedZone={selectedZone}
+                      lockedZone={lockedZone}
+                      onHoveredZoneChange={setHoveredZone}
+                      onLockedZoneChange={setLockedZone}
+                    />
+                  </div>
+                  {showDim && (
+                    <span className="pointer-events-none absolute right-3 top-3 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
+                      analyzing
+                    </span>
+                  )}
+                </>
               ) : (
                 <div className="flex h-64 w-full items-center justify-center text-sm text-[var(--muted)]">
                   {inFlight ? "analyzing…" : "preparing…"}
