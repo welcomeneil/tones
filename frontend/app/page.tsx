@@ -225,7 +225,7 @@ export default function Home() {
 
       {file && result && (
         <div className="sticky bottom-0 z-10 flex flex-col gap-3 border-t border-[var(--border)] bg-[var(--background)] py-4">
-          <div className="flex items-center justify-between gap-6">
+          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
             <ModeToggle value={viewMode} onChange={setViewMode} disabled={!result} />
             <p className="font-mono text-sm tabular-nums text-[var(--foreground)]">
               {selectedZone !== null && munsellValue !== null && (
@@ -234,8 +234,8 @@ export default function Home() {
                   <span className="text-[var(--border)]">·</span> value{" "}
                   {munsellValue}
                   {lockedZone !== null && (
-                    <span className="ml-3 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
-                      locked · esc
+                    <span className="ml-3 hidden text-[10px] uppercase tracking-[0.2em] text-[var(--muted)] sm:inline">
+                      locked
                     </span>
                   )}
                 </>
@@ -252,8 +252,13 @@ export default function Home() {
         </div>
       )}
 
-      <footer className="mt-auto border-t border-[var(--border)] pt-6 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
-        value-study reference · neil bisht · 2026 ·{" "}
+      <footer className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-[var(--border)] pt-6 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
+        <span>value-study reference</span>
+        <span aria-hidden="true">·</span>
+        <span>neil bisht</span>
+        <span aria-hidden="true">·</span>
+        <span>2026</span>
+        <span aria-hidden="true">·</span>
         <a
           href="https://github.com/welcomeneil/tones"
           target="_blank"
