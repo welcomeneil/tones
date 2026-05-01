@@ -7,14 +7,40 @@ export class AnalyzeNotFoundError extends Error {
   }
 }
 
+// FastAPI returns errors as { detail: string }. Upstream/edge failures may
+// return HTML or plain text. Pull out the friendly message when we can,
+// fall back to a generic "request failed (status)" otherwise — never dump
+// raw JSON or HTML into the UI.
+async function readErrorMessage(res: Response, fallback: string): Promise<string> {
+  const contentType = res.headers.get("content-type") ?? "";
+  try {
+    if (contentType.includes("application/json")) {
+      const data = (await res.json()) as unknown;
+      if (
+        data &&
+        typeof data === "object" &&
+        "detail" in data &&
+        typeof (data as { detail: unknown }).detail === "string"
+      ) {
+        return (data as { detail: string }).detail;
+      }
+      return fallback;
+    }
+    const text = (await res.text()).trim();
+    if (!text || text.startsWith("<") || text.length > 200) return fallback;
+    return text;
+  } catch {
+    return fallback;
+  }
+}
+
 export async function ingest(blob: Blob, signal: AbortSignal): Promise<IngestResult> {
   const form = new FormData();
   form.append("file", blob, "upload.jpg");
 
   const res = await fetch("/api/ingest", { method: "POST", body: form, signal });
   if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(detail || `ingest failed (${res.status})`);
+    throw new Error(await readErrorMessage(res, `ingest failed (${res.status})`));
   }
   return (await res.json()) as IngestResult;
 }
@@ -31,9 +57,9 @@ export async function analyze(
     signal,
   });
   if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    if (res.status === 404) throw new AnalyzeNotFoundError(detail || "image expired");
-    throw new Error(detail || `analyze failed (${res.status})`);
+    const message = await readErrorMessage(res, `analyze failed (${res.status})`);
+    if (res.status === 404) throw new AnalyzeNotFoundError(message);
+    throw new Error(message);
   }
   return (await res.json()) as AnalyzeResult;
 }
