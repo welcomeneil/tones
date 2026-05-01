@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from api import cache
+from api.algorithms._shared import DegenerateImageError
 from api.serialize import zone_index_to_png_bytes, zone_map_to_png_bytes
 from pipeline import decode, segment
 
@@ -18,7 +19,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-ALLOWED_ALGOS = {"peaks", "kmeans", "otsu"}
+ALLOWED_ALGOS = {"peaks", "kmeans"}
 
 
 @app.get("/health")
@@ -58,6 +59,8 @@ def analyze(body: AnalyzeBody):
 
     try:
         zones, palette, boundaries = segment(gray, algo=body.algo, n=body.n, sigma=body.sigma)
+    except DegenerateImageError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"pipeline failed: {exc}") from exc
 

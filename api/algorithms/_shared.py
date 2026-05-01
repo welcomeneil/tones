@@ -13,6 +13,21 @@ def compute_histogram(gray: np.ndarray) -> np.ndarray:
     return counts
 
 
+class DegenerateImageError(ValueError):
+    """Raised when an input image has too little tonal variation to segment."""
+
+
+def require_tonal_variation(gray: np.ndarray, min_distinct: int = 2) -> None:
+    distinct = int(np.count_nonzero(compute_histogram(gray)))
+    if distinct < min_distinct:
+        plural = "s" if distinct != 1 else ""
+        raise DegenerateImageError(
+            f"image has too little tonal variation "
+            f"({distinct} distinct value{plural}); "
+            f"upload an image with a range of light and dark values"
+        )
+
+
 def zones_from_boundaries(gray: np.ndarray, boundaries: np.ndarray) -> np.ndarray:
     return np.digitize(gray, bins=boundaries)
 

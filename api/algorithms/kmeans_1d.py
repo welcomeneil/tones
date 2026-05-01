@@ -57,8 +57,6 @@ def run(gray: np.ndarray, n: int = 5, seed: int = 0):
     v_used = values[mask]
     w_used = counts[mask]
     k = min(n, len(v_used))
-    if k < 2:
-        raise ValueError("not enough distinct luminosity values")
     rng = np.random.default_rng(seed)
     centers = _kmeans_plus_plus_init(v_used, w_used, k, rng)
     centers = _lloyd_1d(v_used, w_used, centers)

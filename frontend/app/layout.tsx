@@ -20,7 +20,7 @@ const dmSans = DM_Sans({
 export const metadata: Metadata = {
   title: "tone zone",
   description:
-    "A reference tool for artists who draw tonally — upload an image, adjust gaze distance, find the tones.",
+    "A reference tool for artists who draw tonally — upload an image, adjust gaze distance, find the values.",
 };
 
 export default function RootLayout({

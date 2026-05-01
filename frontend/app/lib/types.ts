@@ -1,6 +1,6 @@
 export type RenderMode = "reference" | "zones";
 
-export type Algorithm = "peaks" | "kmeans" | "otsu";
+export type Algorithm = "peaks" | "kmeans";
 
 export type IngestResult = {
   id: string;
