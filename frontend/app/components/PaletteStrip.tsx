@@ -22,7 +22,12 @@ export function PaletteStrip({
         const active = selectedZone === idx;
         const locked = lockedZone === idx;
         const labelLight = luminosity > 140;
-        const label = `V${idx + 1}/${n}`;
+        const fullLabel = `V${idx + 1}/${n}`;
+        const shortLabel = String(idx + 1);
+        const labelClass = `font-mono tabular-nums leading-none transition-opacity ${
+          active ? "scale-y-[0.926] opacity-100" : "opacity-60 group-hover:opacity-100"
+        }`;
+        const labelStyle = { color: labelLight ? "#1a1a1a" : "#f5f0e8" };
         return (
           <button
             key={idx}
@@ -30,7 +35,7 @@ export function PaletteStrip({
             onMouseEnter={() => onHoveredZoneChange(idx)}
             onMouseLeave={() => onHoveredZoneChange(null)}
             onClick={() => onLockedZoneChange(locked ? null : idx)}
-            className={`group relative flex h-12 flex-1 origin-bottom items-end justify-center pb-1 transition-transform duration-200 ease-out ${
+            className={`group relative flex h-12 min-w-0 flex-1 origin-bottom items-end justify-center pb-1 transition-transform duration-200 ease-out ${
               active ? "scale-y-[1.08]" : ""
             }`}
             style={{
@@ -41,15 +46,16 @@ export function PaletteStrip({
                   ? "1px dashed var(--foreground)"
                   : "none",
             }}
-            title={`${label} · luminosity ${luminosity}`}
+            title={`${fullLabel} · luminosity ${luminosity}`}
           >
+            <span className={`${labelClass} text-[8px] sm:hidden`} style={labelStyle}>
+              {shortLabel}
+            </span>
             <span
-              className={`font-mono text-[10px] tabular-nums leading-none transition-opacity ${
-                active ? "scale-y-[0.926] opacity-100" : "opacity-60 group-hover:opacity-100"
-              }`}
-              style={{ color: labelLight ? "#1a1a1a" : "#f5f0e8" }}
+              className={`${labelClass} hidden text-[10px] sm:inline`}
+              style={labelStyle}
             >
-              {label}
+              {fullLabel}
             </span>
           </button>
         );
