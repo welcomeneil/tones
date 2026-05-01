@@ -27,13 +27,6 @@ const MERGE_GAP_FRACTION = 0; // bboxes within this fraction of max(W,H) merge (
 
 type Bbox = { x0: number; y0: number; x1: number; y1: number; area: number };
 
-function base64ToBlob(b64: string, type: string): Blob {
-  const binary = atob(b64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return new Blob([bytes], { type });
-}
-
 export function AnalyzedCanvas({
   result,
   referenceBitmap,
@@ -50,10 +43,15 @@ export function AnalyzedCanvas({
 
   useEffect(() => {
     let cancelled = false;
-    const flatBlob = base64ToBlob(result.zoneMapPng, "image/png");
-    const indexBlob = base64ToBlob(result.zoneIndexPng, "image/png");
-    Promise.all([createImageBitmap(flatBlob), createImageBitmap(indexBlob)]).then(
-      ([flat, index]) => {
+    const ctrl = new AbortController();
+    Promise.all([
+      fetch(result.mapUrl, { signal: ctrl.signal }).then((r) => r.blob()),
+      fetch(result.indexUrl, { signal: ctrl.signal }).then((r) => r.blob()),
+    ])
+      .then(([flatBlob, indexBlob]) =>
+        Promise.all([createImageBitmap(flatBlob), createImageBitmap(indexBlob)]),
+      )
+      .then(([flat, index]) => {
         if (cancelled) {
           flat.close();
           index.close();
@@ -71,10 +69,13 @@ export function AnalyzedCanvas({
         }
         setZoneMap(flat);
         setZoneIndexData(data);
-      },
-    );
+      })
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+      });
     return () => {
       cancelled = true;
+      ctrl.abort();
     };
   }, [result]);
 

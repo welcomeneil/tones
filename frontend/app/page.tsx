@@ -8,11 +8,11 @@ import { ModeToggle } from "./components/ModeToggle";
 import { PaletteStrip } from "./components/PaletteStrip";
 import { SigmaSlider } from "./components/SigmaSlider";
 import { ValueCountPicker } from "./components/ValueCountPicker";
-import { analyze } from "./lib/api";
+import { AnalyzeNotFoundError, analyze, ingest } from "./lib/api";
 import { downscaleImage } from "./lib/downscale";
 import type { Algorithm, AnalyzeResult, RenderMode } from "./lib/types";
 
-const DEBOUNCE_MS = 250;
+const ANALYZE_DEBOUNCE_MS = 400;
 const DEFAULT_SIGMA = 2.0;
 const DEFAULT_N = 5;
 
@@ -20,6 +20,7 @@ export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [blob, setBlob] = useState<Blob | null>(null);
   const [bitmap, setBitmap] = useState<ImageBitmap | null>(null);
+  const [imageId, setImageId] = useState<string | null>(null);
   const [algoMode, setAlgoMode] = useState<AlgoMode>("targeted");
   const [n, setN] = useState(DEFAULT_N);
   const [sigma, setSigma] = useState(DEFAULT_SIGMA);
@@ -59,14 +60,32 @@ export default function Home() {
   }, [file]);
 
   useEffect(() => {
-    if (!blob) return;
+    if (!blob || imageId) return;
+    const ctrl = new AbortController();
+    setInFlight(true);
+    ingest(blob, ctrl.signal)
+      .then((r) => {
+        if (ctrl.signal.aborted) return;
+        setImageId(r.id);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        if (ctrl.signal.aborted) return;
+        setError(err instanceof Error ? err.message : "ingest failed");
+        setInFlight(false);
+      });
+    return () => ctrl.abort();
+  }, [blob, imageId]);
+
+  useEffect(() => {
+    if (!imageId) return;
     const timer = setTimeout(() => {
       abortRef.current?.abort();
       const ctrl = new AbortController();
       abortRef.current = ctrl;
       setInFlight(true);
       setError(null);
-      analyze(blob, { algo, n, sigma }, ctrl.signal)
+      analyze(imageId, { algo, n, sigma }, ctrl.signal)
         .then((r) => {
           if (ctrl.signal.aborted) return;
           setResult(r);
@@ -76,6 +95,11 @@ export default function Home() {
         .catch((err: unknown) => {
           if (err instanceof DOMException && err.name === "AbortError") return;
           if (ctrl.signal.aborted) return;
+          if (err instanceof AnalyzeNotFoundError) {
+            // Cache evicted on the server; clear id so the ingest effect re-fires.
+            setImageId(null);
+            return;
+          }
           setError(err instanceof Error ? err.message : "analyze failed");
         })
         .finally(() => {
@@ -84,9 +108,9 @@ export default function Home() {
             abortRef.current = null;
           }
         });
-    }, DEBOUNCE_MS);
+    }, ANALYZE_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [blob, algo, n, sigma]);
+  }, [imageId, algo, n, sigma]);
 
   useEffect(() => {
     return () => abortRef.current?.abort();
@@ -125,6 +149,7 @@ export default function Home() {
       prev?.close();
       return null;
     });
+    setImageId(null);
     setResult(null);
     setError(null);
     setHoveredZone(null);

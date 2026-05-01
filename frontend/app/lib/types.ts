@@ -2,6 +2,12 @@ export type RenderMode = "reference" | "zones";
 
 export type Algorithm = "peaks" | "kmeans" | "otsu";
 
+export type IngestResult = {
+  id: string;
+  width: number;
+  height: number;
+};
+
 export type AnalyzeResult = {
   width: number;
   height: number;
@@ -9,8 +15,8 @@ export type AnalyzeResult = {
   n: number;
   palette: number[];
   boundaries: number[];
-  zoneIndexPng: string;
-  zoneMapPng: string;
+  mapUrl: string;
+  indexUrl: string;
 };
 
 export type AnalyzeParams = {

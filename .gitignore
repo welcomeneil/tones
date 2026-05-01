@@ -45,3 +45,6 @@ original_code.py
 
 # fly.io
 .fly/
+
+# Claude Code local state
+.claude/
