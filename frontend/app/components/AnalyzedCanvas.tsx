@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { AnalyzeResult, RenderMode } from "../lib/types";
 
 type Props = {
   result: AnalyzeResult;
+  zoneMap: ImageBitmap;
+  zoneIndexData: ImageData;
   referenceBitmap: ImageBitmap;
   mode: RenderMode;
   selectedZone: number | null;
@@ -29,6 +31,8 @@ type Bbox = { x0: number; y0: number; x1: number; y1: number; area: number };
 
 export function AnalyzedCanvas({
   result,
+  zoneMap,
+  zoneIndexData,
   referenceBitmap,
   mode,
   selectedZone,
@@ -38,57 +42,17 @@ export function AnalyzedCanvas({
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
-  const [zoneMap, setZoneMap] = useState<ImageBitmap | null>(null);
-  const [zoneIndexData, setZoneIndexData] = useState<ImageData | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    const ctrl = new AbortController();
-    Promise.all([
-      fetch(result.mapUrl, { signal: ctrl.signal }).then((r) => r.blob()),
-      fetch(result.indexUrl, { signal: ctrl.signal }).then((r) => r.blob()),
-    ])
-      .then(([flatBlob, indexBlob]) =>
-        Promise.all([createImageBitmap(flatBlob), createImageBitmap(indexBlob)]),
-      )
-      .then(([flat, index]) => {
-        if (cancelled) {
-          flat.close();
-          index.close();
-          return;
-        }
-        const offscreen = new OffscreenCanvas(result.width, result.height);
-        const ctx = offscreen.getContext("2d");
-        if (!ctx) return;
-        ctx.drawImage(index, 0, 0);
-        const data = ctx.getImageData(0, 0, result.width, result.height);
-        index.close();
-        if (cancelled) {
-          flat.close();
-          return;
-        }
-        setZoneMap(flat);
-        setZoneIndexData(data);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-      });
-    return () => {
-      cancelled = true;
-      ctrl.abort();
-    };
-  }, [result]);
 
   // Connected-component bounding boxes per zone, computed once per analyze
   // via union-find over the zone-index image. Used to draw corner brackets.
-  const componentsByZone = useMemo(() => {
-    if (!zoneIndexData) return null;
-    return computeComponents(zoneIndexData);
-  }, [zoneIndexData]);
+  const componentsByZone = useMemo(
+    () => computeComponents(zoneIndexData),
+    [zoneIndexData],
+  );
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !zoneMap) return;
+    if (!canvas) return;
     canvas.width = result.width;
     canvas.height = result.height;
     const ctx = canvas.getContext("2d");
@@ -115,7 +79,7 @@ export function AnalyzedCanvas({
       const ctx = overlay.getContext("2d");
       if (!ctx) return;
       ctx.clearRect(0, 0, dw, dh);
-      if (selectedZone === null || !componentsByZone) return;
+      if (selectedZone === null) return;
 
       const comps = componentsByZone.get(selectedZone);
       if (!comps || comps.length === 0) return;
@@ -169,7 +133,7 @@ export function AnalyzedCanvas({
 
   const zoneAt = (e: React.MouseEvent<HTMLCanvasElement>): number | null => {
     const canvas = canvasRef.current;
-    if (!canvas || !zoneIndexData) return null;
+    if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
     const x = Math.floor(((e.clientX - rect.left) / rect.width) * zoneIndexData.width);
     const y = Math.floor(((e.clientY - rect.top) / rect.height) * zoneIndexData.height);

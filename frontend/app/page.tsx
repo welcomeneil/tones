@@ -8,9 +8,15 @@ import { ModeToggle } from "./components/ModeToggle";
 import { PaletteStrip } from "./components/PaletteStrip";
 import { SigmaSlider } from "./components/SigmaSlider";
 import { ValueCountPicker } from "./components/ValueCountPicker";
-import { AnalyzeNotFoundError, analyze, ingest } from "./lib/api";
+import {
+  AnalyzeNotFoundError,
+  type AnalyzedAssets,
+  analyze,
+  fetchAnalyzedAssets,
+  ingest,
+} from "./lib/api";
 import { downscaleImage } from "./lib/downscale";
-import type { Algorithm, AnalyzeResult, RenderMode } from "./lib/types";
+import type { Algorithm, RenderMode } from "./lib/types";
 
 const ANALYZE_DEBOUNCE_MS = 400;
 const DEFAULT_SIGMA = 2.0;
@@ -25,7 +31,8 @@ export default function Home() {
   const [n, setN] = useState(DEFAULT_N);
   const [sigma, setSigma] = useState(DEFAULT_SIGMA);
   const [viewMode, setViewMode] = useState<RenderMode>("zones");
-  const [result, setResult] = useState<AnalyzeResult | null>(null);
+  const [analyzed, setAnalyzed] = useState<AnalyzedAssets | null>(null);
+  const result = analyzed?.result ?? null;
   const [hoveredZone, setHoveredZone] = useState<number | null>(null);
   const [lockedZone, setLockedZone] = useState<number | null>(null);
   const [inFlight, setInFlight] = useState(false);
@@ -87,8 +94,18 @@ export default function Home() {
       setError(null);
       analyze(imageId, { algo, n, sigma }, ctrl.signal)
         .then((r) => {
-          if (ctrl.signal.aborted) return;
-          setResult(r);
+          if (ctrl.signal.aborted) return null;
+          return fetchAnalyzedAssets(r, ctrl.signal);
+        })
+        .then((assets) => {
+          if (!assets || ctrl.signal.aborted) {
+            assets?.zoneMap.close();
+            return;
+          }
+          setAnalyzed((prev) => {
+            prev?.zoneMap.close();
+            return assets;
+          });
           setHoveredZone(null);
           setLockedZone(null);
         })
@@ -150,7 +167,10 @@ export default function Home() {
       return null;
     });
     setImageId(null);
-    setResult(null);
+    setAnalyzed((prev) => {
+      prev?.zoneMap.close();
+      return null;
+    });
     setError(null);
     setHoveredZone(null);
     setLockedZone(null);
@@ -201,7 +221,7 @@ export default function Home() {
             </div>
 
             <div className="relative min-h-64">
-              {result && bitmap ? (
+              {analyzed && bitmap ? (
                 <>
                   <div
                     className={`transition-opacity duration-200 ${
@@ -209,7 +229,9 @@ export default function Home() {
                     }`}
                   >
                     <AnalyzedCanvas
-                      result={result}
+                      result={analyzed.result}
+                      zoneMap={analyzed.zoneMap}
+                      zoneIndexData={analyzed.zoneIndexData}
                       referenceBitmap={bitmap}
                       mode={viewMode}
                       selectedZone={selectedZone}
