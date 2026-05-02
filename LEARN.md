@@ -25,7 +25,7 @@ A running list of topics that came up while shipping this. Add to it freely.
 - Specific tricks already baked in:
   - Client-side downscale to 1200px **before** uploading (smaller body = faster upload)
   - Indexed PNG zone map (base64) instead of huge JSON int arrays (~100× smaller payload)
-  - 250ms debounce on the sigma slider (don't fire while user is dragging)
+  - 400ms debounce on the analyze effect (don't fire while user is dragging the slider)
   - AbortController cancels stale in-flight requests
 - What else could speed it up? (HTTP/2, edge caching of static assets, regional Fly machines, WebAssembly client-side pipeline)
 
@@ -140,7 +140,7 @@ Chronological record of significant questions investigated and tradeoffs made. E
 
 **Pipeline traced.**
 1. Browser: `downscaleImage` (`frontend/app/lib/downscale.ts`) — decode → OffscreenCanvas at 1200px max edge → JPEG q=0.85 → re-decode. Once per upload.
-2. Browser: `analyze()` (`frontend/app/lib/api.ts:14`) builds FormData and POSTs `/api/analyze`. Re-fires every time `blob | algo | n | sigma` changes (`page.tsx:61-89`), debounced 250ms.
+2. Browser: `analyze()` (`frontend/app/lib/api.ts:14`) builds FormData and POSTs `/api/analyze`. Re-fires every time `blob | algo | n | sigma` changes (`page.tsx:61-89`), debounced 400ms.
 3. Vercel function: `frontend/app/api/analyze/route.ts` — reads FormData, rebuilds it field-by-field, fetches `${ANALYZER_URL}/analyze`. Adds a hop and double-buffers bytes.
 4. FastAPI/Python (`api/main.py:28` → `pipeline.py` → `api/algorithms/*`): `await file.read()` → `load_grayscale` (PIL decode) → algorithm on the 256-bin histogram (cheap, sub-ms).
 5. `api/serialize.py`: two PNG encodes with `optimize=True`, then base64 into JSON in `main.py:59-60`.

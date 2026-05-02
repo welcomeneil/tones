@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { AnalyzeResult, RenderMode } from "../lib/types";
 
 type Props = {
@@ -49,18 +49,13 @@ export function AnalyzedCanvas({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
 
-  // Connected-components computation is O(W*H) and allocates an Int32Array
-  // of width*height. ~30-50ms on desktop, 150-300ms on mobile. Defer until
-  // the user actually needs it (first hover/click) so the analyze fade-in
-  // is never blocked by it.
-  const [needsComponents, setNeedsComponents] = useState(false);
-  useEffect(() => {
-    if (selectedZone !== null) setNeedsComponents(true);
-  }, [selectedZone]);
-
-  const componentsByZone = useMemo<Map<number, Bbox[]> | null>(
-    () => (needsComponents ? computeComponents(zoneIndexData) : null),
-    [needsComponents, zoneIndexData],
+  // Connected-component bounding boxes per zone, computed once per analyze
+  // via union-find over the zone-index image. Used to draw corner brackets.
+  // ~30-50ms for 1M pixels on desktop; deferring this until first hover was
+  // explored but trades worse interactive feedback for marginal first-paint.
+  const componentsByZone = useMemo(
+    () => computeComponents(zoneIndexData),
+    [zoneIndexData],
   );
 
   useEffect(() => {
@@ -92,7 +87,7 @@ export function AnalyzedCanvas({
       const ctx = overlay.getContext("2d");
       if (!ctx) return;
       ctx.clearRect(0, 0, dw, dh);
-      if (selectedZone === null || !componentsByZone) return;
+      if (selectedZone === null) return;
 
       const comps = componentsByZone.get(selectedZone);
       if (!comps || comps.length === 0) return;
