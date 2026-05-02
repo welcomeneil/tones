@@ -1,22 +1,13 @@
+import { proxyUpstream } from "../_proxy";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ANALYZER_URL = process.env.ANALYZER_URL ?? "http://127.0.0.1:8080";
-
 export async function POST(request: Request) {
   const body = await request.text();
-  const upstream = await fetch(`${ANALYZER_URL}/analyze`, {
+  return proxyUpstream("/analyze", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body,
-  });
-
-  const text = await upstream.text();
-  return new Response(text, {
-    status: upstream.status,
-    headers: {
-      "content-type": upstream.headers.get("content-type") ?? "application/json",
-      "cache-control": "no-store",
-    },
   });
 }

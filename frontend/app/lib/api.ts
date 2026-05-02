@@ -1,37 +1,39 @@
 import type { AnalyzeParams, AnalyzeResult, IngestResult } from "./types";
 
-export class AnalyzeNotFoundError extends Error {
-  constructor(message: string) {
+// All API errors carry a machine-readable code and a human-readable message.
+// The contract: every non-2xx response from /api/* is JSON of shape
+// { error: { code, message } }. This is enforced by the proxy layer.
+export class ApiError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+    public readonly status: number,
+  ) {
     super(message);
-    this.name = "AnalyzeNotFoundError";
+    this.name = "ApiError";
   }
 }
 
-// FastAPI returns errors as { detail: string }. Upstream/edge failures may
-// return HTML or plain text. Pull out the friendly message when we can,
-// fall back to a generic "request failed (status)" otherwise — never dump
-// raw JSON or HTML into the UI.
-async function readErrorMessage(res: Response, fallback: string): Promise<string> {
-  const contentType = res.headers.get("content-type") ?? "";
+async function readEnvelope(res: Response): Promise<ApiError> {
+  let code = "unknown";
+  let message = `request failed (${res.status})`;
   try {
-    if (contentType.includes("application/json")) {
-      const data = (await res.json()) as unknown;
-      if (
-        data &&
-        typeof data === "object" &&
-        "detail" in data &&
-        typeof (data as { detail: unknown }).detail === "string"
-      ) {
-        return (data as { detail: string }).detail;
-      }
-      return fallback;
+    const data = (await res.json()) as unknown;
+    if (
+      data &&
+      typeof data === "object" &&
+      "error" in data &&
+      typeof (data as { error: unknown }).error === "object" &&
+      (data as { error: object }).error !== null
+    ) {
+      const err = (data as { error: { code?: unknown; message?: unknown } }).error;
+      if (typeof err.code === "string") code = err.code;
+      if (typeof err.message === "string") message = err.message;
     }
-    const text = (await res.text()).trim();
-    if (!text || text.startsWith("<") || text.length > 200) return fallback;
-    return text;
   } catch {
-    return fallback;
+    // Body wasn't JSON; keep the generic fallback.
   }
+  return new ApiError(code, message, res.status);
 }
 
 export async function ingest(blob: Blob, signal: AbortSignal): Promise<IngestResult> {
@@ -39,9 +41,7 @@ export async function ingest(blob: Blob, signal: AbortSignal): Promise<IngestRes
   form.append("file", blob, "upload.jpg");
 
   const res = await fetch("/api/ingest", { method: "POST", body: form, signal });
-  if (!res.ok) {
-    throw new Error(await readErrorMessage(res, `ingest failed (${res.status})`));
-  }
+  if (!res.ok) throw await readEnvelope(res);
   return (await res.json()) as IngestResult;
 }
 
@@ -56,11 +56,7 @@ export async function analyze(
     body: JSON.stringify({ id, algo: params.algo, n: params.n, sigma: params.sigma }),
     signal,
   });
-  if (!res.ok) {
-    const message = await readErrorMessage(res, `analyze failed (${res.status})`);
-    if (res.status === 404) throw new AnalyzeNotFoundError(message);
-    throw new Error(message);
-  }
+  if (!res.ok) throw await readEnvelope(res);
   return (await res.json()) as AnalyzeResult;
 }
 

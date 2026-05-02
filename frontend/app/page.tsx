@@ -9,7 +9,7 @@ import { PaletteStrip } from "./components/PaletteStrip";
 import { SigmaSlider } from "./components/SigmaSlider";
 import { ValueCountPicker } from "./components/ValueCountPicker";
 import {
-  AnalyzeNotFoundError,
+  ApiError,
   type AnalyzedAssets,
   analyze,
   fetchAnalyzedAssets,
@@ -112,7 +112,7 @@ export default function Home() {
         .catch((err: unknown) => {
           if (err instanceof DOMException && err.name === "AbortError") return;
           if (ctrl.signal.aborted) return;
-          if (err instanceof AnalyzeNotFoundError) {
+          if (err instanceof ApiError && err.code === "image_not_found") {
             // Cache evicted on the server; clear id so the ingest effect re-fires.
             setImageId(null);
             return;
