@@ -8,11 +8,15 @@ validation failures, and unexpected crashes — returns the same JSON shape:
 The frontend treats `code` as the contract; `message` is for display.
 """
 
+import logging
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from api.algorithms._shared import DegenerateImageError
+
+log = logging.getLogger("tone_zone.errors")
 
 
 def _envelope(code: str, message: str) -> dict:
@@ -57,5 +61,8 @@ def install_handlers(app: FastAPI) -> None:
         return JSONResponse(status_code=400, content=_envelope("bad_request", message))
 
     @app.exception_handler(Exception)
-    async def _unhandled(_: Request, exc: Exception) -> JSONResponse:
+    async def _unhandled(request: Request, exc: Exception) -> JSONResponse:
+        log.exception(
+            "unhandled exception on %s %s", request.method, request.url.path
+        )
         return JSONResponse(status_code=500, content=_envelope("internal", "unexpected server error"))
