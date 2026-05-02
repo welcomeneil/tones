@@ -69,6 +69,11 @@ export default function Home() {
   useEffect(() => {
     if (!blob || imageId) return;
     const ctrl = new AbortController();
+    // Network-lifecycle flag: this effect *is* the start of an async
+    // operation, and inFlight tracks its pending state. The recommended
+    // alternative (event-handler-driven) doesn't fit because the trigger
+    // is `blob` changing after a separate downscale effect resolves.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setInFlight(true);
     ingest(blob, ctrl.signal)
       .then((r) => {
@@ -135,15 +140,27 @@ export default function Home() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setLockedZone(null);
+      if (e.key === "Escape") {
+        setLockedZone(null);
+        setError(null);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  useEffect(() => {
+    if (!error) return;
+    const t = setTimeout(() => setError(null), 8000);
+    return () => clearTimeout(t);
+  }, [error]);
+
   const [showDim, setShowDim] = useState(false);
   useEffect(() => {
     if (!inFlight) {
+      // Reset on transition from in-flight to idle. Synchronous setState in
+      // effect is the right pattern here: we need to drive an external timer.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setShowDim(false);
       return;
     }
@@ -241,7 +258,11 @@ export default function Home() {
                     />
                   </div>
                   {showDim && (
-                    <span className="pointer-events-none absolute right-3 top-3 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
+                    <span
+                      role="status"
+                      aria-live="polite"
+                      className="pointer-events-none absolute right-3 top-3 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]"
+                    >
                       analyzing
                     </span>
                   )}
@@ -264,8 +285,22 @@ export default function Home() {
         )}
 
         {error && (
-          <p className="text-sm text-[var(--foreground)]">
-            <span className="text-[10px] uppercase tracking-[0.2em] text-[var(--accent)]">error</span> — {error}
+          <p
+            role="alert"
+            className="flex items-baseline gap-3 text-sm text-[var(--foreground)]"
+          >
+            <span className="text-[10px] uppercase tracking-[0.2em] text-[var(--accent)]">
+              error
+            </span>
+            <span className="flex-1">— {error}</span>
+            <button
+              type="button"
+              onClick={() => setError(null)}
+              aria-label="dismiss error"
+              className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)] hover:text-[var(--foreground)]"
+            >
+              dismiss
+            </button>
           </p>
         )}
       </main>
