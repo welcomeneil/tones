@@ -14,7 +14,6 @@ export type AnalyzeResult = {
   algo: Algorithm;
   n: number;
   palette: number[];
-  boundaries: number[];
   mapUrl: string;
   indexUrl: string;
 };

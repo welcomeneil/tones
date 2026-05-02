@@ -25,6 +25,7 @@ def _envelope(code: str, message: str) -> dict:
 
 _STATUS_TO_CODE = {
     400: "bad_request",
+    401: "unauthorized",
     404: "not_found",
     413: "payload_too_large",
     415: "unsupported_media_type",
@@ -38,13 +39,22 @@ def api_error(status: int, code: str, message: str) -> HTTPException:
     return HTTPException(status_code=status, detail={"code": code, "message": message})
 
 
+def _rid_headers(request: Request) -> dict[str, str]:
+    rid = getattr(request.state, "request_id", None)
+    return {"x-request-id": rid} if rid else {}
+
+
 def install_handlers(app: FastAPI) -> None:
     @app.exception_handler(DegenerateImageError)
-    async def _degenerate(_: Request, exc: DegenerateImageError) -> JSONResponse:
-        return JSONResponse(status_code=400, content=_envelope("degenerate_image", str(exc)))
+    async def _degenerate(request: Request, exc: DegenerateImageError) -> JSONResponse:
+        return JSONResponse(
+            status_code=400,
+            content=_envelope("degenerate_image", str(exc)),
+            headers=_rid_headers(request),
+        )
 
     @app.exception_handler(HTTPException)
-    async def _http(_: Request, exc: HTTPException) -> JSONResponse:
+    async def _http(request: Request, exc: HTTPException) -> JSONResponse:
         detail = exc.detail
         if isinstance(detail, dict) and "code" in detail and "message" in detail:
             content = _envelope(str(detail["code"]), str(detail["message"]))
@@ -52,17 +62,26 @@ def install_handlers(app: FastAPI) -> None:
             code = _STATUS_TO_CODE.get(exc.status_code, "error")
             message = str(detail) if detail else _STATUS_TO_CODE.get(exc.status_code, "error")
             content = _envelope(code, message)
-        return JSONResponse(status_code=exc.status_code, content=content)
+        return JSONResponse(status_code=exc.status_code, content=content, headers=_rid_headers(request))
 
     @app.exception_handler(RequestValidationError)
-    async def _validation(_: Request, exc: RequestValidationError) -> JSONResponse:
+    async def _validation(request: Request, exc: RequestValidationError) -> JSONResponse:
         first = exc.errors()[0] if exc.errors() else None
         message = first.get("msg", "invalid request") if first else "invalid request"
-        return JSONResponse(status_code=400, content=_envelope("bad_request", message))
+        return JSONResponse(
+            status_code=400,
+            content=_envelope("bad_request", message),
+            headers=_rid_headers(request),
+        )
 
     @app.exception_handler(Exception)
     async def _unhandled(request: Request, exc: Exception) -> JSONResponse:
+        rid = getattr(request.state, "request_id", "-")
         log.exception(
-            "unhandled exception on %s %s", request.method, request.url.path
+            "unhandled exception rid=%s %s %s", rid, request.method, request.url.path
         )
-        return JSONResponse(status_code=500, content=_envelope("internal", "unexpected server error"))
+        return JSONResponse(
+            status_code=500,
+            content=_envelope("internal", "unexpected server error"),
+            headers={"x-request-id": rid} if rid != "-" else {},
+        )

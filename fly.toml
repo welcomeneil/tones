@@ -7,6 +7,11 @@ primary_region = "iad"
   auto_stop_machines = "stop"
   auto_start_machines = true
   min_machines_running = 0
+  # Single-instance assumption: api/cache.py holds image bytes in process memory.
+  # If we scale beyond one machine, ingest and analyze can land on different
+  # instances and the second sees image_not_found. Move the cache to Upstash/Redis
+  # before raising this cap.
+  max_machines_running = 1
 
 [[http_service.checks]]
   grace_period = "10s"

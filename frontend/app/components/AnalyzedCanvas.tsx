@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { AnalyzeResult, RenderMode } from "../lib/types";
 
 type Props = {
@@ -27,7 +27,13 @@ const BRACKET_ARM_DPX = 14;
 const MIN_AREA_FRACTION = 0.0001; // skip components < 0.01% of image area
 const MERGE_GAP_FRACTION = 0; // bboxes within this fraction of max(W,H) merge (0 = only true overlap)
 
-type Bbox = { x0: number; y0: number; x1: number; y1: number; area: number };
+type Bbox = {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  pixelCount: number;
+};
 
 export function AnalyzedCanvas({
   result,
@@ -43,11 +49,18 @@ export function AnalyzedCanvas({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
 
-  // Connected-component bounding boxes per zone, computed once per analyze
-  // via union-find over the zone-index image. Used to draw corner brackets.
-  const componentsByZone = useMemo(
-    () => computeComponents(zoneIndexData),
-    [zoneIndexData],
+  // Connected-components computation is O(W*H) and allocates an Int32Array
+  // of width*height. ~30-50ms on desktop, 150-300ms on mobile. Defer until
+  // the user actually needs it (first hover/click) so the analyze fade-in
+  // is never blocked by it.
+  const [needsComponents, setNeedsComponents] = useState(false);
+  useEffect(() => {
+    if (selectedZone !== null) setNeedsComponents(true);
+  }, [selectedZone]);
+
+  const componentsByZone = useMemo<Map<number, Bbox[]> | null>(
+    () => (needsComponents ? computeComponents(zoneIndexData) : null),
+    [needsComponents, zoneIndexData],
   );
 
   useEffect(() => {
@@ -79,14 +92,14 @@ export function AnalyzedCanvas({
       const ctx = overlay.getContext("2d");
       if (!ctx) return;
       ctx.clearRect(0, 0, dw, dh);
-      if (selectedZone === null) return;
+      if (selectedZone === null || !componentsByZone) return;
 
       const comps = componentsByZone.get(selectedZone);
       if (!comps || comps.length === 0) return;
 
       const sx = dw / result.width;
       const sy = dh / result.height;
-      const minArea = result.width * result.height * MIN_AREA_FRACTION;
+      const minPixels = result.width * result.height * MIN_AREA_FRACTION;
       // Inset by half the halo stroke so brackets stay fully on-canvas
       // when a component's bbox hugs the image edges (e.g. dominant zone
       // spanning the whole frame). Without this, edge-aligned strokes get
@@ -94,28 +107,23 @@ export function AnalyzedCanvas({
       const inset = HALO_LINE_DPX;
       const path = new Path2D();
       for (const c of comps) {
-        if (c.area < minArea) continue;
+        if (c.pixelCount < minPixels) continue;
         const x0 = Math.max(c.x0 * sx, inset);
         const y0 = Math.max(c.y0 * sy, inset);
         const x1 = Math.min((c.x1 + 1) * sx, dw - inset);
         const y1 = Math.min((c.y1 + 1) * sy, dh - inset);
         const w = x1 - x0;
         const h = y1 - y0;
-        // Bracket arm: short L at each corner, never longer than ~⅓ of side.
         const arm = Math.min(BRACKET_ARM_DPX, w / 3, h / 3);
-        // top-left
         path.moveTo(x0, y0 + arm);
         path.lineTo(x0, y0);
         path.lineTo(x0 + arm, y0);
-        // top-right
         path.moveTo(x1 - arm, y0);
         path.lineTo(x1, y0);
         path.lineTo(x1, y0 + arm);
-        // bottom-right
         path.moveTo(x1, y1 - arm);
         path.lineTo(x1, y1);
         path.lineTo(x1 - arm, y1);
-        // bottom-left
         path.moveTo(x0 + arm, y1);
         path.lineTo(x0, y1);
         path.lineTo(x0, y1 - arm);
@@ -149,10 +157,17 @@ export function AnalyzedCanvas({
     return zoneIndexData.data[i];
   };
 
+  const ariaLabel =
+    mode === "zones"
+      ? "tonal-zone map of the uploaded reference; click a zone to lock its bracket"
+      : "uploaded reference image; click a zone to lock its bracket";
+
   return (
     <div className="relative w-full border border-[var(--border)]">
       <canvas
         ref={canvasRef}
+        role="img"
+        aria-label={ariaLabel}
         onMouseMove={(e) => onHoveredZoneChange(zoneAt(e))}
         onMouseLeave={() => onHoveredZoneChange(null)}
         onClick={(e) => {
@@ -164,6 +179,7 @@ export function AnalyzedCanvas({
       />
       <canvas
         ref={overlayRef}
+        aria-hidden="true"
         className="pointer-events-none absolute inset-0 h-full w-full"
       />
     </div>
@@ -173,9 +189,9 @@ export function AnalyzedCanvas({
 // 4-connected components via union-find on the zone-index image. 8-conn was
 // too aggressive: tonal-zone pixels scatter everywhere, so diagonal joins
 // collapse most of a zone into one mega-component. Two passes: first builds
-// equivalence classes, second aggregates bbox + area per root. Groups by
-// zone, then fuses overlapping bboxes (no cascade — uses original distances
-// via union-find on the bbox graph). ~30-50ms for 1M pixels.
+// equivalence classes, second aggregates bbox + pixelCount per root. Groups
+// by zone, then fuses overlapping bboxes (no cascade — uses original
+// distances via union-find on the bbox graph). ~30-50ms for 1M pixels.
 function computeComponents(zi: ImageData): Map<number, Bbox[]> {
   const { width, height, data } = zi;
   const N = width * height;
@@ -215,7 +231,7 @@ function computeComponents(zi: ImageData): Map<number, Bbox[]> {
       const z = data[i * 4];
       let entry = roots.get(r);
       if (!entry) {
-        entry = { zone: z, bbox: { x0: x, y0: y, x1: x, y1: y, area: 0 } };
+        entry = { zone: z, bbox: { x0: x, y0: y, x1: x, y1: y, pixelCount: 0 } };
         roots.set(r, entry);
       }
       const b = entry.bbox;
@@ -223,7 +239,7 @@ function computeComponents(zi: ImageData): Map<number, Bbox[]> {
       if (y < b.y0) b.y0 = y;
       if (x > b.x1) b.x1 = x;
       if (y > b.y1) b.y1 = y;
-      b.area++;
+      b.pixelCount++;
     }
   }
 
@@ -248,7 +264,7 @@ function computeComponents(zi: ImageData): Map<number, Bbox[]> {
 // Cluster bboxes via union-find on a proximity graph built from ORIGINAL
 // distances. Avoids the cascade of iterative merging — where a merged bbox
 // grows large enough to swallow all the others. One bbox per cluster, sized
-// to cover all sources, area summed.
+// to cover all sources, pixelCount summed.
 function mergeBboxes(boxes: Bbox[], gap: number): Bbox[] {
   const n = boxes.length;
   if (n <= 1) return boxes;
@@ -293,7 +309,7 @@ function mergeBboxes(boxes: Bbox[], gap: number): Bbox[] {
       existing.y0 = Math.min(existing.y0, b.y0);
       existing.x1 = Math.max(existing.x1, b.x1);
       existing.y1 = Math.max(existing.y1, b.y1);
-      existing.area += b.area;
+      existing.pixelCount += b.pixelCount;
     }
   }
   return Array.from(groups.values());
