@@ -87,13 +87,18 @@ export function AnalyzedCanvas({
       const sx = dw / result.width;
       const sy = dh / result.height;
       const minArea = result.width * result.height * MIN_AREA_FRACTION;
+      // Inset by half the halo stroke so brackets stay fully on-canvas
+      // when a component's bbox hugs the image edges (e.g. dominant zone
+      // spanning the whole frame). Without this, edge-aligned strokes get
+      // clipped and the brackets appear missing.
+      const inset = HALO_LINE_DPX;
       const path = new Path2D();
       for (const c of comps) {
         if (c.area < minArea) continue;
-        const x0 = c.x0 * sx;
-        const y0 = c.y0 * sy;
-        const x1 = (c.x1 + 1) * sx;
-        const y1 = (c.y1 + 1) * sy;
+        const x0 = Math.max(c.x0 * sx, inset);
+        const y0 = Math.max(c.y0 * sy, inset);
+        const x1 = Math.min((c.x1 + 1) * sx, dw - inset);
+        const y1 = Math.min((c.y1 + 1) * sy, dh - inset);
         const w = x1 - x0;
         const h = y1 - y0;
         // Bracket arm: short L at each corner, never longer than ~⅓ of side.
