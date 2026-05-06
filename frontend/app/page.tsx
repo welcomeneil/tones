@@ -9,11 +9,9 @@ import { PaletteStrip } from "./components/PaletteStrip";
 import { SigmaSlider } from "./components/SigmaSlider";
 import { ValueCountPicker } from "./components/ValueCountPicker";
 import {
-  ApiError,
   type AnalyzedAssets,
-  analyze,
-  fetchAnalyzedAssets,
-  ingest,
+  ProcessWorkerClient,
+  toAnalyzedAssets,
 } from "./lib/api";
 import { downscaleImage } from "./lib/downscale";
 import type { Algorithm, RenderMode } from "./lib/types";
@@ -26,7 +24,7 @@ export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [blob, setBlob] = useState<Blob | null>(null);
   const [bitmap, setBitmap] = useState<ImageBitmap | null>(null);
-  const [imageId, setImageId] = useState<string | null>(null);
+  const [imageLoaded, setImageLoaded] = useState(false);
   const [algoMode, setAlgoMode] = useState<AlgoMode>("targeted");
   const [n, setN] = useState(DEFAULT_N);
   const [sigma, setSigma] = useState(DEFAULT_SIGMA);
@@ -39,6 +37,11 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
+  const workerRef = useRef<ProcessWorkerClient | null>(null);
+  const getWorker = () => {
+    if (!workerRef.current) workerRef.current = new ProcessWorkerClient();
+    return workerRef.current;
+  };
   const selectedZone = lockedZone ?? hoveredZone;
   const algo: Algorithm = algoMode === "targeted" ? "kmeans" : "peaks";
 
@@ -67,46 +70,43 @@ export default function Home() {
   }, [file]);
 
   useEffect(() => {
-    if (!blob || imageId) return;
+    if (!blob || imageLoaded) return;
     const ctrl = new AbortController();
-    // Network-lifecycle flag: this effect *is* the start of an async
-    // operation, and inFlight tracks its pending state. The recommended
-    // alternative (event-handler-driven) doesn't fit because the trigger
-    // is `blob` changing after a separate downscale effect resolves.
+    // Lifecycle flag: this effect kicks off the worker.load, and inFlight
+    // tracks its pending state until either load_ok or analyze_ok resolves.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setInFlight(true);
-    ingest(blob, ctrl.signal)
-      .then((r) => {
+    getWorker()
+      .load(blob, ctrl.signal)
+      .then(() => {
         if (ctrl.signal.aborted) return;
-        setImageId(r.id);
+        setImageLoaded(true);
       })
       .catch((err: unknown) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
         if (ctrl.signal.aborted) return;
-        setError(err instanceof Error ? err.message : "ingest failed");
+        setError(err instanceof Error ? err.message : "load failed");
         setInFlight(false);
       });
     return () => ctrl.abort();
-  }, [blob, imageId]);
+  }, [blob, imageLoaded]);
 
   useEffect(() => {
-    if (!imageId) return;
+    if (!imageLoaded) return;
     const timer = setTimeout(() => {
       abortRef.current?.abort();
       const ctrl = new AbortController();
       abortRef.current = ctrl;
       setInFlight(true);
       setError(null);
-      analyze(imageId, { algo, n, sigma }, ctrl.signal)
-        .then((r) => {
-          if (ctrl.signal.aborted) return null;
-          return fetchAnalyzedAssets(r, ctrl.signal);
-        })
-        .then((assets) => {
-          if (!assets || ctrl.signal.aborted) {
-            assets?.zoneMap.close();
+      getWorker()
+        .analyze({ algo, n, sigma }, ctrl.signal)
+        .then((msg) => {
+          if (ctrl.signal.aborted) {
+            msg.zoneMap.close();
             return;
           }
+          const assets = toAnalyzedAssets(msg);
           setAnalyzed((prev) => {
             prev?.zoneMap.close();
             return assets;
@@ -117,11 +117,6 @@ export default function Home() {
         .catch((err: unknown) => {
           if (err instanceof DOMException && err.name === "AbortError") return;
           if (ctrl.signal.aborted) return;
-          if (err instanceof ApiError && err.code === "image_not_found") {
-            // Cache evicted on the server; clear id so the ingest effect re-fires.
-            setImageId(null);
-            return;
-          }
           setError(err instanceof Error ? err.message : "analyze failed");
         })
         .finally(() => {
@@ -132,10 +127,14 @@ export default function Home() {
         });
     }, ANALYZE_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [imageId, algo, n, sigma]);
+  }, [imageLoaded, algo, n, sigma]);
 
   useEffect(() => {
-    return () => abortRef.current?.abort();
+    return () => {
+      abortRef.current?.abort();
+      workerRef.current?.terminate();
+      workerRef.current = null;
+    };
   }, []);
 
   useEffect(() => {
@@ -177,13 +176,14 @@ export default function Home() {
 
   const onReplace = () => {
     abortRef.current?.abort();
+    workerRef.current?.reset();
     setFile(null);
     setBlob(null);
     setBitmap((prev) => {
       prev?.close();
       return null;
     });
-    setImageId(null);
+    setImageLoaded(false);
     setAnalyzed((prev) => {
       prev?.zoneMap.close();
       return null;
