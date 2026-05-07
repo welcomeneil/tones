@@ -212,7 +212,7 @@ export default function Home() {
       <main className="flex flex-col gap-10">
         {!file && (
           <>
-            <h2 className="font-serif text-4xl leading-snug text-[var(--foreground)]">
+            <h2 className="text-center font-serif text-4xl leading-snug text-[var(--foreground)]">
               Upload a reference.
             </h2>
             <DropZone
@@ -334,7 +334,7 @@ export default function Home() {
         </div>
       )}
 
-      <footer className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-[var(--border)] pt-6 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
+      <footer className="mt-auto flex flex-wrap items-center justify-center gap-x-2 gap-y-1 border-t border-[var(--border)] pt-6 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
         <span>value-study reference</span>
         <span aria-hidden="true">·</span>
         <span>neil bisht</span>
