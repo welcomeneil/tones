@@ -192,6 +192,10 @@ export default function Home() {
     setHoveredZone(null);
     setLockedZone(null);
     setInFlight(false);
+    setAlgoMode("targeted");
+    setN(DEFAULT_N);
+    setSigma(DEFAULT_SIGMA);
+    setViewMode("zones");
   };
 
   return (
@@ -241,8 +245,8 @@ export default function Home() {
               {analyzed && bitmap ? (
                 <>
                   <div
-                    className={`transition-opacity duration-200 ${
-                      showDim ? "opacity-40" : "opacity-100"
+                    className={`transition-opacity duration-700 ease-in-out ${
+                      showDim ? "opacity-60" : "opacity-100"
                     }`}
                   >
                     <AnalyzedCanvas
@@ -309,7 +313,7 @@ export default function Home() {
         <div className="sticky bottom-0 z-10 flex flex-col gap-3 border-t border-[var(--border)] bg-[var(--background)] py-4">
           <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
             <ModeToggle value={viewMode} onChange={setViewMode} disabled={!result} />
-            <p className="font-mono text-sm tabular-nums text-[var(--foreground)]">
+            <p className="min-h-5 font-mono text-sm tabular-nums text-[var(--foreground)]">
               {selectedZone !== null && munsellValue !== null && (
                 <>
                   V{selectedZone + 1}/{paletteSize}{" "}

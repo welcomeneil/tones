@@ -10,12 +10,6 @@ type Props = {
   onLockedZoneChange: (zone: number | null) => void;
 };
 
-type TouchState = {
-  active: boolean;
-  startIdx: number | null;
-  moved: boolean;
-};
-
 export function PaletteStrip({
   palette,
   selectedZone,
@@ -24,58 +18,75 @@ export function PaletteStrip({
   onLockedZoneChange,
 }: Props) {
   const n = palette.length;
-  const stateRef = useRef<TouchState>({
-    active: false,
-    startIdx: null,
-    moved: false,
-  });
+  const containerRef = useRef<HTMLDivElement>(null);
+  const slideRef = useRef({ active: false, moved: false });
 
-  const idxFromPoint = (x: number, y: number): number | null => {
-    const el = document.elementFromPoint(x, y);
-    const btn = el?.closest<HTMLElement>("[data-zone-idx]");
-    if (!btn) return null;
-    const v = btn.dataset.zoneIdx;
-    return v === undefined ? null : Number(v);
-  };
-
-  const onPointerDown = (e: React.PointerEvent) => {
-    if (e.pointerType === "mouse") return;
-    // Suppress the synthetic click that would otherwise fire after touch tap;
-    // we handle lock-toggle ourselves in onPointerUp so slides don't lock.
-    e.preventDefault();
-    const idx = idxFromPoint(e.clientX, e.clientY);
-    stateRef.current = { active: true, startIdx: idx, moved: false };
-    if (idx !== null) onHoveredZoneChange(idx);
-  };
-
-  const onPointerMove = (e: React.PointerEvent) => {
-    if (e.pointerType === "mouse") return;
-    const s = stateRef.current;
-    if (!s.active) return;
-    const idx = idxFromPoint(e.clientX, e.clientY);
-    if (idx !== s.startIdx) s.moved = true;
-    onHoveredZoneChange(idx);
-  };
-
-  const onPointerUp = (e: React.PointerEvent) => {
-    if (e.pointerType === "mouse") return;
-    const s = stateRef.current;
-    if (!s.active) return;
-    const idx = idxFromPoint(e.clientX, e.clientY);
-    if (!s.moved && idx !== null && idx === s.startIdx) {
-      onLockedZoneChange(lockedZone === idx ? null : idx);
+  const zoneAt = (x: number, y: number): number | null => {
+    const root = containerRef.current;
+    if (!root) return null;
+    const rect = root.getBoundingClientRect();
+    // Vertical slack keeps tracking smooth if the finger drifts off the strip.
+    const VERTICAL_SLACK = 32;
+    if (x < rect.left || x > rect.right) return null;
+    if (y < rect.top - VERTICAL_SLACK || y > rect.bottom + VERTICAL_SLACK) return null;
+    const buttons = root.querySelectorAll<HTMLElement>("[data-zone-idx]");
+    let bestIdx: number | null = null;
+    let bestDist = Infinity;
+    for (const btn of buttons) {
+      const r = btn.getBoundingClientRect();
+      const dist = Math.abs(x - (r.left + r.right) / 2);
+      if (dist < bestDist) {
+        const idx = Number(btn.dataset.zoneIdx);
+        if (Number.isInteger(idx)) {
+          bestIdx = idx;
+          bestDist = dist;
+        }
+      }
     }
+    return bestIdx;
+  };
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== "touch") return;
+    slideRef.current = { active: true, moved: false };
+    e.currentTarget.setPointerCapture(e.pointerId);
+    onHoveredZoneChange(zoneAt(e.clientX, e.clientY));
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== "touch" || !slideRef.current.active) return;
+    slideRef.current.moved = true;
+    onHoveredZoneChange(zoneAt(e.clientX, e.clientY));
+  };
+
+  const handlePointerEnd = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== "touch" || !slideRef.current.active) return;
+    slideRef.current.active = false;
     onHoveredZoneChange(null);
-    stateRef.current = { active: false, startIdx: null, moved: false };
+  };
+
+  const handleClick = (idx: number) => {
+    if (slideRef.current.moved) {
+      slideRef.current.moved = false;
+      return;
+    }
+    onLockedZoneChange(lockedZone === idx ? null : idx);
   };
 
   return (
     <div
-      className="flex touch-none gap-1"
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
+      ref={containerRef}
+      className="flex select-none gap-1"
+      style={{
+        WebkitTouchCallout: "none",
+        WebkitUserSelect: "none",
+        WebkitTapHighlightColor: "transparent",
+        touchAction: "none",
+      }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerEnd}
+      onPointerCancel={handlePointerEnd}
     >
       {palette.map((luminosity, idx) => {
         const active = selectedZone === idx;
@@ -85,7 +96,7 @@ export function PaletteStrip({
         const fullLabel = `V${idx + 1}/${n}`;
         const shortLabel = String(idx + 1);
         const labelClass = `font-mono tabular-nums leading-none transition-opacity ${
-          active ? "scale-y-[0.926] opacity-100" : "opacity-60 group-hover:opacity-100"
+          active ? "opacity-100" : "opacity-60 group-hover:opacity-100"
         }`;
         const labelStyle = { color: labelLight ? "#1a1a1a" : "#f5f0e8" };
         return (
@@ -95,20 +106,10 @@ export function PaletteStrip({
             data-zone-idx={idx}
             onMouseEnter={() => onHoveredZoneChange(idx)}
             onMouseLeave={() => onHoveredZoneChange(null)}
-            onClick={(e) => {
-              if (e.detail === 0) {
-                // Keyboard activation (Enter/Space) — toggle lock.
-                onLockedZoneChange(locked ? null : idx);
-                return;
-              }
-              // Mouse click — toggle lock. Touch taps are handled in onPointerUp.
-              if ((e.nativeEvent as PointerEvent).pointerType !== "touch") {
-                onLockedZoneChange(locked ? null : idx);
-              }
-            }}
-            className={`group relative flex h-12 min-w-0 flex-1 origin-bottom items-end justify-center pb-1 transition-[transform,opacity] duration-200 ease-out ${
-              active ? "scale-y-[1.08]" : ""
-            } ${dimmed ? "opacity-30" : "opacity-100"}`}
+            onClick={() => handleClick(idx)}
+            className={`group relative flex h-12 min-w-0 flex-1 items-end justify-center pb-1 transition-opacity duration-500 ease-in-out ${
+              dimmed ? "opacity-50" : "opacity-100"
+            }`}
             style={{
               backgroundColor: `rgb(${luminosity}, ${luminosity}, ${luminosity})`,
               outline: active
