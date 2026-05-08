@@ -313,7 +313,10 @@ export function AnalyzedCanvas({
       // Nearest-neighbor preserves the posterized zone boundaries; smoothing
       // would blur the very edges the user is trying to target.
       ctx.imageSmoothingEnabled = false;
-      ctx.fillStyle = "#000";
+      // Backdrop matches the page bg so areas outside the image just look
+      // like the page continues — keeps the dropoff legible instead of
+      // reading as a black mask under the loupe.
+      ctx.fillStyle = "#f5f0e8";
       ctx.fillRect(0, 0, px, px);
       ctx.drawImage(
         canvas,
@@ -535,7 +538,7 @@ export function AnalyzedCanvas({
           type="button"
           onClick={resetZoom}
           aria-label="reset zoom"
-          className="absolute right-3 top-3 rounded-full border border-[var(--border)] bg-[var(--background)]/85 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)] backdrop-blur transition-colors hover:text-[var(--foreground)]"
+          className="absolute right-3 top-3 rounded-full border border-[var(--border)] bg-[var(--background)]/95 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-[var(--foreground)] backdrop-blur transition-colors hover:text-[var(--accent)]"
         >
           reset zoom
         </button>
