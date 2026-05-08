@@ -24,10 +24,12 @@ export function PaletteStrip({
     moved: false,
     startX: 0,
     startY: 0,
+    startTime: 0,
     startIdx: null as number | null,
     suppressClick: false,
   });
   const SLIDE_THRESHOLD_PX = 6;
+  const TAP_DURATION_MS = 250;
 
   const zoneAt = (x: number, y: number): number | null => {
     const root = containerRef.current;
@@ -62,6 +64,7 @@ export function PaletteStrip({
       moved: false,
       startX: e.clientX,
       startY: e.clientY,
+      startTime: e.timeStamp,
       startIdx: idx,
       suppressClick: false,
     };
@@ -82,10 +85,12 @@ export function PaletteStrip({
 
   const handlePointerEnd = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.pointerType !== "touch" || !slideRef.current.active) return;
-    const { moved, startIdx } = slideRef.current;
+    const { moved, startIdx, startTime } = slideRef.current;
     slideRef.current.active = false;
     // Pointer capture often swallows the synthetic click on touch; toggle lock here instead.
-    if (!moved && startIdx !== null && e.type === "pointerup") {
+    // Only a quick tap (short press, no slide) toggles lock — a long press is preview-only.
+    const isTap = !moved && e.timeStamp - startTime < TAP_DURATION_MS;
+    if (isTap && startIdx !== null && e.type === "pointerup") {
       onLockedZoneChange(lockedZone === startIdx ? null : startIdx);
       slideRef.current.suppressClick = true;
     }
