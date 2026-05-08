@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AnalyzeResult, RenderMode } from "../lib/types";
 
 type Props = {
@@ -41,6 +41,16 @@ const LOUPE_EDGE_PAD = 8;
 const LONG_PRESS_MS = 320;
 const MOVE_CANCEL_PX = 10;
 
+// Pan/zoom: ctrl/⌘+wheel on desktop (also covers Mac trackpad pinch, which
+// the OS surfaces as ctrlKey wheel events), 2-finger pinch on mobile. Plain
+// wheel and 1-finger drag are intentionally untouched so page scrolling and
+// the long-press loupe keep their existing behavior.
+const ZOOM_MIN = 1;
+const ZOOM_MAX = 5;
+const WHEEL_SENSITIVITY = 0.005;
+const RESET_EASING = "cubic-bezier(0.34, 1.56, 0.64, 1)";
+const RESET_DURATION_MS = 280;
+
 type Bbox = {
   x0: number;
   y0: number;
@@ -63,8 +73,50 @@ export function AnalyzedCanvas({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const loupeRef = useRef<HTMLCanvasElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const wasTouchRef = useRef(false);
   const [loupeActive, setLoupeActive] = useState(false);
+  const [zoom, setZoom] = useState({ s: 1, tx: 0, ty: 0 });
+  const [zoomTransition, setZoomTransition] = useState(false);
+  // Mirror state into a ref so touch handlers (bound once) can read latest
+  // zoom without rebinding listeners — rebinding mid-gesture drops events.
+  const zoomRef = useRef(zoom);
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
+
+  // Snap back to natural size whenever a new analyze completes. Comparing the
+  // image dimensions, not the result object identity, avoids resetting on
+  // unrelated re-renders (mode toggle, locked-zone changes). Lifecycle reset
+  // tied to an external value, not a derivation — setState in effect is
+  // intentional here.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setZoom({ s: 1, tx: 0, ty: 0 });
+    setZoomTransition(false);
+  }, [result.width, result.height]);
+
+  const clampZoom = useCallback((s: number, tx: number, ty: number) => {
+    const wrapper = wrapperRef.current;
+    const cs = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, s));
+    if (!wrapper) return { s: cs, tx, ty };
+    const rect = wrapper.getBoundingClientRect();
+    // transform-origin is 0 0, so at scale cs the content extends from tx to
+    // tx + width*cs. Clamp so the content always covers the wrapper viewport.
+    const minTx = rect.width - rect.width * cs;
+    const minTy = rect.height - rect.height * cs;
+    return {
+      s: cs,
+      tx: Math.min(0, Math.max(minTx, tx)),
+      ty: Math.min(0, Math.max(minTy, ty)),
+    };
+  }, []);
+
+  const resetZoom = () => {
+    setZoomTransition(true);
+    setZoom({ s: 1, tx: 0, ty: 0 });
+    window.setTimeout(() => setZoomTransition(false), RESET_DURATION_MS + 20);
+  };
 
   // Connected-component bounding boxes per zone, computed once per analyze
   // via union-find over the zone-index image. Used to draw corner brackets.
@@ -169,15 +221,58 @@ export function AnalyzedCanvas({
     return zoneIndexData.data[i];
   };
 
+  // Desktop wheel zoom. ctrl/meta gates this so plain wheel still scrolls the
+  // page — the canvas lives inside a tall layout, and silently swallowing
+  // wheel events while the cursor passes over it would feel broken. On macOS
+  // trackpad pinch arrives as a synthesized ctrlKey wheel event, so the same
+  // handler covers it without extra detection.
+  useEffect(() => {
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      const factor = Math.exp(-e.deltaY * WHEEL_SENSITIVITY);
+      const rect = wrapper.getBoundingClientRect();
+      const ax = e.clientX - rect.left;
+      const ay = e.clientY - rect.top;
+      setZoomTransition(false);
+      setZoom((prev) => {
+        const newS = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, prev.s * factor));
+        if (newS === prev.s) return prev;
+        const k = newS / prev.s;
+        const tx = ax - (ax - prev.tx) * k;
+        const ty = ay - (ay - prev.ty) * k;
+        return clampZoom(newS, tx, ty);
+      });
+    };
+    wrapper.addEventListener("wheel", onWheel, { passive: false });
+    return () => wrapper.removeEventListener("wheel", onWheel);
+  }, [clampZoom]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    const wrapper = wrapperRef.current;
+    if (!canvas || !wrapper) return;
 
     let pressTimer: number | null = null;
     let startX = 0;
     let startY = 0;
     let inLoupe = false;
     let pickedZone: number | null = null;
+    // Pinch baseline: capturing s/tx/ty at gesture start lets us derive each
+    // frame's transform from the *original* finger positions, avoiding drift
+    // that accumulates when each delta is applied to the previous frame.
+    let pinch:
+      | {
+          dist: number;
+          cx: number;
+          cy: number;
+          baseS: number;
+          baseTx: number;
+          baseTy: number;
+        }
+      | null = null;
 
     const zoneAtClient = (cx: number, cy: number): number | null => {
       const rect = canvas.getBoundingClientRect();
@@ -268,9 +363,43 @@ export function AnalyzedCanvas({
       requestAnimationFrame(() => drawLoupe(fx, fy));
     };
 
+    const cancelPress = () => {
+      if (pressTimer !== null) {
+        window.clearTimeout(pressTimer);
+        pressTimer = null;
+      }
+    };
+    const exitLoupe = () => {
+      if (!inLoupe) return;
+      inLoupe = false;
+      setLoupeActive(false);
+      onHoveredZoneChange(null);
+      pickedZone = null;
+    };
+
     const onTouchStart = (e: TouchEvent) => {
-      if (e.touches.length !== 1) return;
       wasTouchRef.current = true;
+      // Second finger lands → switch from any single-touch state into pinch.
+      // We deliberately don't lock the zone the loupe was over: a deliberate
+      // pinch shouldn't leave a stray selection from the moment-before state.
+      if (e.touches.length === 2) {
+        cancelPress();
+        exitLoupe();
+        setZoomTransition(false);
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        const z = zoomRef.current;
+        pinch = {
+          dist: Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY),
+          cx: (t1.clientX + t2.clientX) / 2,
+          cy: (t1.clientY + t2.clientY) / 2,
+          baseS: z.s,
+          baseTx: z.tx,
+          baseTy: z.ty,
+        };
+        return;
+      }
+      if (e.touches.length !== 1) return;
       const t = e.touches[0];
       startX = t.clientX;
       startY = t.clientY;
@@ -281,12 +410,29 @@ export function AnalyzedCanvas({
     };
 
     const onTouchMove = (e: TouchEvent) => {
+      if (pinch && e.touches.length >= 2) {
+        e.preventDefault();
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        const cx = (t1.clientX + t2.clientX) / 2;
+        const cy = (t1.clientY + t2.clientY) / 2;
+        const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+        if (pinch.dist === 0) return;
+        const k = dist / pinch.dist;
+        const newS = pinch.baseS * k;
+        const rect = wrapper.getBoundingClientRect();
+        // Anchor the original midpoint to wherever the current midpoint is —
+        // this fuses zoom-around-anchor and 2-finger pan in a single update.
+        const tx = cx - rect.left - (pinch.cx - rect.left - pinch.baseTx) * k;
+        const ty = cy - rect.top - (pinch.cy - rect.top - pinch.baseTy) * k;
+        setZoom(clampZoom(newS, tx, ty));
+        return;
+      }
       const t = e.touches[0];
       if (!t) return;
       if (pressTimer !== null) {
         if (Math.hypot(t.clientX - startX, t.clientY - startY) > MOVE_CANCEL_PX) {
-          window.clearTimeout(pressTimer);
-          pressTimer = null;
+          cancelPress();
         }
       }
       if (inLoupe) {
@@ -302,20 +448,25 @@ export function AnalyzedCanvas({
       }
     };
 
-    const onTouchEnd = () => {
-      if (pressTimer !== null) {
-        window.clearTimeout(pressTimer);
-        pressTimer = null;
+    const onTouchEnd = (e: TouchEvent) => {
+      // Tail of a pinch: keep wasTouchRef set briefly so the synthetic click
+      // that fires after the last finger lifts can't re-trigger the
+      // desktop lock-toggle path.
+      if (pinch) {
+        if (e.touches.length < 2) pinch = null;
+        if (e.touches.length === 0) {
+          window.setTimeout(() => {
+            wasTouchRef.current = false;
+          }, 400);
+        }
+        return;
       }
+      cancelPress();
       if (inLoupe) {
-        inLoupe = false;
-        setLoupeActive(false);
-        if (pickedZone !== null) onLockedZoneChange(pickedZone);
-        onHoveredZoneChange(null);
-        pickedZone = null;
+        const captured = pickedZone;
+        exitLoupe();
+        if (captured !== null) onLockedZoneChange(captured);
       }
-      // Leave the touch flag set briefly so the synthetic click that fires
-      // after touchend doesn't re-trigger the desktop lock-toggle path.
       window.setTimeout(() => {
         wasTouchRef.current = false;
       }, 400);
@@ -333,41 +484,67 @@ export function AnalyzedCanvas({
       canvas.removeEventListener("touchend", onTouchEnd);
       canvas.removeEventListener("touchcancel", onTouchEnd);
     };
-  }, [zoneIndexData, onHoveredZoneChange, onLockedZoneChange]);
+  }, [zoneIndexData, onHoveredZoneChange, onLockedZoneChange, clampZoom]);
 
   const ariaLabel =
     mode === "zones"
       ? "tonal-zone map of the uploaded reference; click a zone to lock its bracket"
       : "uploaded reference image; click a zone to lock its bracket";
 
+  const isZoomed = zoom.s > 1.001;
+
   return (
-    <div className="relative w-full border border-[var(--border)]">
-      <canvas
-        ref={canvasRef}
-        role="img"
-        aria-label={ariaLabel}
-        onMouseMove={(e) => {
-          if (lockedZone !== null) return;
-          onHoveredZoneChange(zoneAt(e));
+    <div
+      ref={wrapperRef}
+      className="relative w-full overflow-hidden border border-[var(--border)]"
+    >
+      <div
+        style={{
+          transform: `translate(${zoom.tx}px, ${zoom.ty}px) scale(${zoom.s})`,
+          transformOrigin: "0 0",
+          transition: zoomTransition
+            ? `transform ${RESET_DURATION_MS}ms ${RESET_EASING}`
+            : "none",
+          willChange: "transform",
         }}
-        onMouseLeave={() => {
-          if (lockedZone !== null) return;
-          onHoveredZoneChange(null);
-        }}
-        onClick={(e) => {
-          if (wasTouchRef.current) return;
-          const z = zoneAt(e);
-          if (z === null) return;
-          onLockedZoneChange(lockedZone === z ? null : z);
-        }}
-        style={{ touchAction: "pan-y" }}
-        className="block h-auto w-full cursor-crosshair select-none"
-      />
-      <canvas
-        ref={overlayRef}
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 h-full w-full"
-      />
+      >
+        <canvas
+          ref={canvasRef}
+          role="img"
+          aria-label={ariaLabel}
+          onMouseMove={(e) => {
+            if (lockedZone !== null) return;
+            onHoveredZoneChange(zoneAt(e));
+          }}
+          onMouseLeave={() => {
+            if (lockedZone !== null) return;
+            onHoveredZoneChange(null);
+          }}
+          onClick={(e) => {
+            if (wasTouchRef.current) return;
+            const z = zoneAt(e);
+            if (z === null) return;
+            onLockedZoneChange(lockedZone === z ? null : z);
+          }}
+          style={{ touchAction: "pan-y" }}
+          className="block h-auto w-full cursor-crosshair select-none"
+        />
+        <canvas
+          ref={overlayRef}
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 h-full w-full"
+        />
+      </div>
+      {isZoomed && (
+        <button
+          type="button"
+          onClick={resetZoom}
+          aria-label="reset zoom"
+          className="absolute right-3 top-3 rounded-full border border-[var(--border)] bg-[var(--background)]/85 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)] backdrop-blur transition-colors hover:text-[var(--foreground)]"
+        >
+          reset zoom
+        </button>
+      )}
       <canvas
         ref={loupeRef}
         aria-hidden="true"
