@@ -42,7 +42,7 @@ export default function Home() {
     if (!workerRef.current) workerRef.current = new ProcessWorkerClient();
     return workerRef.current;
   };
-  const selectedZone = lockedZone ?? hoveredZone;
+  const selectedZone = hoveredZone ?? lockedZone;
   const algo: Algorithm = algoMode === "targeted" ? "kmeans" : "peaks";
 
   useEffect(() => {
