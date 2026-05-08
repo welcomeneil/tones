@@ -24,14 +24,14 @@ export function ValueCountPicker({ value, onChange, disabled }: Props) {
               disabled={disabled}
               onClick={() => onChange(n)}
               style={{ WebkitTapHighlightColor: "transparent" }}
-              className={`flex h-12 min-w-0 flex-1 items-center justify-center bg-[var(--border)] font-mono text-sm tabular-nums outline outline-1 -outline-offset-1 transition-[transform,color,outline-color,background-color] duration-100 ease-out ${
+              className={`flex h-12 min-w-0 flex-1 items-center justify-center bg-[var(--border)] font-mono text-sm tabular-nums outline outline-1 -outline-offset-1 transition-[color,outline-color,background-color] duration-200 ease-out ${
                 active
                   ? "text-[var(--foreground)] outline-[var(--foreground)]"
                   : "text-[var(--muted)] outline-transparent"
               } ${
                 disabled
                   ? "cursor-not-allowed opacity-40"
-                  : "hover:text-[var(--foreground)] active:scale-[0.96] active:bg-[var(--muted)]/15 active:text-[var(--foreground)] active:outline-[var(--foreground)]/60"
+                  : "hover:text-[var(--foreground)] active:text-[var(--foreground)] active:outline-[var(--foreground)]/25"
               }`}
             >
               {n}
