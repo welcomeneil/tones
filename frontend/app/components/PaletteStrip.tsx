@@ -19,7 +19,14 @@ export function PaletteStrip({
 }: Props) {
   const n = palette.length;
   const containerRef = useRef<HTMLDivElement>(null);
-  const slideRef = useRef({ active: false, moved: false, startX: 0, startY: 0 });
+  const slideRef = useRef({
+    active: false,
+    moved: false,
+    startX: 0,
+    startY: 0,
+    startIdx: null as number | null,
+    suppressClick: false,
+  });
   const SLIDE_THRESHOLD_PX = 6;
 
   const zoneAt = (x: number, y: number): number | null => {
@@ -49,13 +56,17 @@ export function PaletteStrip({
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.pointerType !== "touch") return;
+    const idx = zoneAt(e.clientX, e.clientY);
     slideRef.current = {
       active: true,
       moved: false,
       startX: e.clientX,
       startY: e.clientY,
+      startIdx: idx,
+      suppressClick: false,
     };
     e.currentTarget.setPointerCapture(e.pointerId);
+    if (idx !== null) onHoveredZoneChange(idx);
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -71,15 +82,19 @@ export function PaletteStrip({
 
   const handlePointerEnd = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.pointerType !== "touch" || !slideRef.current.active) return;
+    const { moved, startIdx } = slideRef.current;
     slideRef.current.active = false;
-    if (slideRef.current.moved) {
-      onHoveredZoneChange(null);
+    // Pointer capture often swallows the synthetic click on touch; toggle lock here instead.
+    if (!moved && startIdx !== null && e.type === "pointerup") {
+      onLockedZoneChange(lockedZone === startIdx ? null : startIdx);
+      slideRef.current.suppressClick = true;
     }
+    onHoveredZoneChange(null);
   };
 
   const handleClick = (idx: number) => {
-    if (slideRef.current.moved) {
-      slideRef.current.moved = false;
+    if (slideRef.current.suppressClick) {
+      slideRef.current.suppressClick = false;
       return;
     }
     onLockedZoneChange(lockedZone === idx ? null : idx);
