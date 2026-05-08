@@ -99,14 +99,9 @@ export function ValueCountPicker({ value, onChange, disabled }: Props) {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-baseline justify-between">
-        <span className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
-          values
-        </span>
-        <span className="font-mono text-xs tabular-nums text-[var(--foreground)]">
-          N {value}
-        </span>
-      </div>
+      <span className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
+        values
+      </span>
       <div
         ref={containerRef}
         className="flex select-none gap-1"
