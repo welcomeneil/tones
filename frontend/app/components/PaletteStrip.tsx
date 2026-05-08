@@ -29,7 +29,7 @@ export function PaletteStrip({
     suppressClick: false,
   });
   const SLIDE_THRESHOLD_PX = 6;
-  const TAP_DURATION_MS = 70;
+  const TAP_DURATION_MS = 200;
 
   const zoneAt = (x: number, y: number): number | null => {
     const root = containerRef.current;
@@ -92,8 +92,11 @@ export function PaletteStrip({
     const isTap = !moved && e.timeStamp - startTime < TAP_DURATION_MS;
     if (isTap && startIdx !== null && e.type === "pointerup") {
       onLockedZoneChange(lockedZone === startIdx ? null : startIdx);
-      slideRef.current.suppressClick = true;
     }
+    // Always swallow the synthetic click that follows a touch — we've already
+    // decided whether this gesture was a tap. Letting click run again would
+    // re-toggle lock after a long hold or slide.
+    slideRef.current.suppressClick = true;
     onHoveredZoneChange(null);
   };
 
