@@ -37,7 +37,6 @@ const LOUPE_ZOOM = 2.5;
 // under the finger — the user aims by aligning the loupe over the target.
 const LOUPE_OFFSET_X = -40;
 const LOUPE_OFFSET_Y = -92;
-const LOUPE_EDGE_PAD = 8;
 const LONG_PRESS_MS = 320;
 const MOVE_CANCEL_PX = 10;
 
@@ -286,11 +285,7 @@ export function AnalyzedCanvas({
     };
 
     const loupeCenter = (fx: number, fy: number): [number, number] => {
-      let dx = LOUPE_OFFSET_X;
-      let dy = LOUPE_OFFSET_Y;
-      if (fx + dx - LOUPE_DIAMETER / 2 < LOUPE_EDGE_PAD) dx = -dx;
-      if (fy + dy - LOUPE_DIAMETER / 2 < LOUPE_EDGE_PAD) dy = -dy;
-      return [fx + dx, fy + dy];
+      return [fx + LOUPE_OFFSET_X, fy + LOUPE_OFFSET_Y];
     };
 
     const drawLoupe = (fx: number, fy: number) => {
