@@ -23,6 +23,7 @@ body {
   color: var(--foreground);
   font-family: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
   font-feature-settings: "ss01", "ss02";
+  overflow-x: hidden;
 }
 
 .tonal-slider {
