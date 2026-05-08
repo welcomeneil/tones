@@ -136,6 +136,7 @@ export function ValueCountPicker({ value, onChange, disabled }: Props) {
               style={{
                 backgroundColor: "var(--border)",
                 outline: active ? "1px solid var(--foreground)" : "none",
+                outlineOffset: "-1px",
               }}
             >
               {n}
