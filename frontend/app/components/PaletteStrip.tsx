@@ -29,7 +29,7 @@ export function PaletteStrip({
     suppressClick: false,
   });
   const SLIDE_THRESHOLD_PX = 6;
-  const TAP_DURATION_MS = 250;
+  const TAP_DURATION_MS = 120;
 
   const zoneAt = (x: number, y: number): number | null => {
     const root = containerRef.current;
