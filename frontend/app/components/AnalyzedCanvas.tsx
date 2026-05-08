@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { AnalyzeResult, RenderMode } from "../lib/types";
 
 type Props = {
@@ -27,6 +27,15 @@ const BRACKET_ARM_DPX = 14;
 const MIN_AREA_FRACTION = 0.0001; // skip components < 0.01% of image area
 const MERGE_GAP_FRACTION = 0; // bboxes within this fraction of max(W,H) merge (0 = only true overlap)
 
+// Touch loupe: long-press engages a magnifier so users can target zones
+// that read too close together for a fingertip. Quick drags still scroll
+// because touch-action is pan-y until the long-press fires.
+const LOUPE_DIAMETER = 132;
+const LOUPE_ZOOM = 6;
+const LOUPE_FINGER_OFFSET = 88;
+const LONG_PRESS_MS = 320;
+const MOVE_CANCEL_PX = 10;
+
 type Bbox = {
   x0: number;
   y0: number;
@@ -48,6 +57,9 @@ export function AnalyzedCanvas({
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
+  const loupeRef = useRef<HTMLCanvasElement>(null);
+  const wasTouchRef = useRef(false);
+  const [loupeActive, setLoupeActive] = useState(false);
 
   // Connected-component bounding boxes per zone, computed once per analyze
   // via union-find over the zone-index image. Used to draw corner brackets.
@@ -152,6 +164,167 @@ export function AnalyzedCanvas({
     return zoneIndexData.data[i];
   };
 
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    let pressTimer: number | null = null;
+    let startX = 0;
+    let startY = 0;
+    let inLoupe = false;
+    let pickedZone: number | null = null;
+
+    const zoneAtClient = (cx: number, cy: number): number | null => {
+      const rect = canvas.getBoundingClientRect();
+      const x = Math.floor(((cx - rect.left) / rect.width) * zoneIndexData.width);
+      const y = Math.floor(((cy - rect.top) / rect.height) * zoneIndexData.height);
+      if (x < 0 || y < 0 || x >= zoneIndexData.width || y >= zoneIndexData.height) {
+        return null;
+      }
+      const i = (y * zoneIndexData.width + x) * 4;
+      return zoneIndexData.data[i];
+    };
+
+    const drawLoupe = (cx: number, cy: number) => {
+      const loupe = loupeRef.current;
+      if (!loupe) return;
+      const ctx = loupe.getContext("2d");
+      if (!ctx) return;
+
+      const dpr = window.devicePixelRatio || 1;
+      const px = LOUPE_DIAMETER * dpr;
+      if (loupe.width !== px) loupe.width = px;
+      if (loupe.height !== px) loupe.height = px;
+
+      const rect = canvas.getBoundingClientRect();
+      const sx = ((cx - rect.left) / rect.width) * canvas.width;
+      const sy = ((cy - rect.top) / rect.height) * canvas.height;
+      const srcSize = LOUPE_DIAMETER / LOUPE_ZOOM;
+
+      ctx.save();
+      ctx.clearRect(0, 0, px, px);
+      ctx.beginPath();
+      ctx.arc(px / 2, px / 2, px / 2, 0, Math.PI * 2);
+      ctx.clip();
+      // Nearest-neighbor preserves the posterized zone boundaries; smoothing
+      // would blur the very edges the user is trying to target.
+      ctx.imageSmoothingEnabled = false;
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, px, px);
+      ctx.drawImage(
+        canvas,
+        sx - srcSize / 2,
+        sy - srcSize / 2,
+        srcSize,
+        srcSize,
+        0,
+        0,
+        px,
+        px,
+      );
+      ctx.restore();
+
+      ctx.strokeStyle = HALO_COLOR;
+      ctx.lineWidth = 3 * dpr;
+      ctx.beginPath();
+      ctx.arc(px / 2, px / 2, px / 2 - 1.5 * dpr, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.strokeStyle = CORE_COLOR;
+      ctx.lineWidth = 1.5 * dpr;
+      const ch = 7 * dpr;
+      ctx.beginPath();
+      ctx.moveTo(px / 2 - ch, px / 2);
+      ctx.lineTo(px / 2 + ch, px / 2);
+      ctx.moveTo(px / 2, px / 2 - ch);
+      ctx.lineTo(px / 2, px / 2 + ch);
+      ctx.stroke();
+
+      // Flip below the finger when near the top of the viewport so the loupe
+      // never gets clipped off-screen.
+      const offset =
+        cy - LOUPE_FINGER_OFFSET - LOUPE_DIAMETER / 2 < 8
+          ? LOUPE_FINGER_OFFSET
+          : -LOUPE_FINGER_OFFSET;
+      loupe.style.left = `${cx - LOUPE_DIAMETER / 2}px`;
+      loupe.style.top = `${cy + offset - LOUPE_DIAMETER / 2}px`;
+    };
+
+    const enterLoupe = (cx: number, cy: number) => {
+      inLoupe = true;
+      setLoupeActive(true);
+      const z = zoneAtClient(cx, cy);
+      pickedZone = z;
+      onHoveredZoneChange(z);
+      requestAnimationFrame(() => drawLoupe(cx, cy));
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      wasTouchRef.current = true;
+      const t = e.touches[0];
+      startX = t.clientX;
+      startY = t.clientY;
+      pressTimer = window.setTimeout(() => {
+        pressTimer = null;
+        enterLoupe(startX, startY);
+      }, LONG_PRESS_MS);
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (!t) return;
+      if (pressTimer !== null) {
+        if (Math.hypot(t.clientX - startX, t.clientY - startY) > MOVE_CANCEL_PX) {
+          window.clearTimeout(pressTimer);
+          pressTimer = null;
+        }
+      }
+      if (inLoupe) {
+        // Need passive: false so this preventDefault actually suppresses scroll.
+        e.preventDefault();
+        const z = zoneAtClient(t.clientX, t.clientY);
+        if (z !== pickedZone) {
+          pickedZone = z;
+          onHoveredZoneChange(z);
+        }
+        drawLoupe(t.clientX, t.clientY);
+      }
+    };
+
+    const onTouchEnd = () => {
+      if (pressTimer !== null) {
+        window.clearTimeout(pressTimer);
+        pressTimer = null;
+      }
+      if (inLoupe) {
+        inLoupe = false;
+        setLoupeActive(false);
+        if (pickedZone !== null) onLockedZoneChange(pickedZone);
+        onHoveredZoneChange(null);
+        pickedZone = null;
+      }
+      // Leave the touch flag set briefly so the synthetic click that fires
+      // after touchend doesn't re-trigger the desktop lock-toggle path.
+      window.setTimeout(() => {
+        wasTouchRef.current = false;
+      }, 400);
+    };
+
+    canvas.addEventListener("touchstart", onTouchStart, { passive: true });
+    canvas.addEventListener("touchmove", onTouchMove, { passive: false });
+    canvas.addEventListener("touchend", onTouchEnd);
+    canvas.addEventListener("touchcancel", onTouchEnd);
+
+    return () => {
+      if (pressTimer !== null) window.clearTimeout(pressTimer);
+      canvas.removeEventListener("touchstart", onTouchStart);
+      canvas.removeEventListener("touchmove", onTouchMove);
+      canvas.removeEventListener("touchend", onTouchEnd);
+      canvas.removeEventListener("touchcancel", onTouchEnd);
+    };
+  }, [zoneIndexData, onHoveredZoneChange, onLockedZoneChange]);
+
   const ariaLabel =
     mode === "zones"
       ? "tonal-zone map of the uploaded reference; click a zone to lock its bracket"
@@ -172,16 +345,26 @@ export function AnalyzedCanvas({
           onHoveredZoneChange(null);
         }}
         onClick={(e) => {
+          if (wasTouchRef.current) return;
           const z = zoneAt(e);
           if (z === null) return;
           onLockedZoneChange(lockedZone === z ? null : z);
         }}
-        className="block h-auto w-full cursor-crosshair"
+        style={{ touchAction: "pan-y" }}
+        className="block h-auto w-full cursor-crosshair select-none"
       />
       <canvas
         ref={overlayRef}
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 h-full w-full"
+      />
+      <canvas
+        ref={loupeRef}
+        aria-hidden="true"
+        style={{ width: LOUPE_DIAMETER, height: LOUPE_DIAMETER }}
+        className={`pointer-events-none fixed z-50 rounded-full shadow-lg transition-opacity duration-150 ${
+          loupeActive ? "opacity-100" : "opacity-0"
+        }`}
       />
     </div>
   );
