@@ -31,8 +31,13 @@ const MERGE_GAP_FRACTION = 0; // bboxes within this fraction of max(W,H) merge (
 // that read too close together for a fingertip. Quick drags still scroll
 // because touch-action is pan-y until the long-press fires.
 const LOUPE_DIAMETER = 132;
-const LOUPE_ZOOM = 3;
-const LOUPE_FINGER_OFFSET = 88;
+const LOUPE_ZOOM = 2.5;
+// Loupe sits up-and-slightly-left of the finger so the thumb doesn't occlude
+// it. The crosshair targets whatever is under the loupe glass itself, not
+// under the finger — the user aims by aligning the loupe over the target.
+const LOUPE_OFFSET_X = -40;
+const LOUPE_OFFSET_Y = -92;
+const LOUPE_EDGE_PAD = 8;
 const LONG_PRESS_MS = 320;
 const MOVE_CANCEL_PX = 10;
 
@@ -185,7 +190,15 @@ export function AnalyzedCanvas({
       return zoneIndexData.data[i];
     };
 
-    const drawLoupe = (cx: number, cy: number) => {
+    const loupeCenter = (fx: number, fy: number): [number, number] => {
+      let dx = LOUPE_OFFSET_X;
+      let dy = LOUPE_OFFSET_Y;
+      if (fx + dx - LOUPE_DIAMETER / 2 < LOUPE_EDGE_PAD) dx = -dx;
+      if (fy + dy - LOUPE_DIAMETER / 2 < LOUPE_EDGE_PAD) dy = -dy;
+      return [fx + dx, fy + dy];
+    };
+
+    const drawLoupe = (fx: number, fy: number) => {
       const loupe = loupeRef.current;
       if (!loupe) return;
       const ctx = loupe.getContext("2d");
@@ -196,9 +209,10 @@ export function AnalyzedCanvas({
       if (loupe.width !== px) loupe.width = px;
       if (loupe.height !== px) loupe.height = px;
 
+      const [lx, ly] = loupeCenter(fx, fy);
       const rect = canvas.getBoundingClientRect();
-      const sx = ((cx - rect.left) / rect.width) * canvas.width;
-      const sy = ((cy - rect.top) / rect.height) * canvas.height;
+      const sx = ((lx - rect.left) / rect.width) * canvas.width;
+      const sy = ((ly - rect.top) / rect.height) * canvas.height;
       const srcSize = LOUPE_DIAMETER / LOUPE_ZOOM;
 
       ctx.save();
@@ -240,23 +254,18 @@ export function AnalyzedCanvas({
       ctx.lineTo(px / 2, px / 2 + ch);
       ctx.stroke();
 
-      // Flip below the finger when near the top of the viewport so the loupe
-      // never gets clipped off-screen.
-      const offset =
-        cy - LOUPE_FINGER_OFFSET - LOUPE_DIAMETER / 2 < 8
-          ? LOUPE_FINGER_OFFSET
-          : -LOUPE_FINGER_OFFSET;
-      loupe.style.left = `${cx - LOUPE_DIAMETER / 2}px`;
-      loupe.style.top = `${cy + offset - LOUPE_DIAMETER / 2}px`;
+      loupe.style.left = `${lx - LOUPE_DIAMETER / 2}px`;
+      loupe.style.top = `${ly - LOUPE_DIAMETER / 2}px`;
     };
 
-    const enterLoupe = (cx: number, cy: number) => {
+    const enterLoupe = (fx: number, fy: number) => {
       inLoupe = true;
       setLoupeActive(true);
-      const z = zoneAtClient(cx, cy);
+      const [lx, ly] = loupeCenter(fx, fy);
+      const z = zoneAtClient(lx, ly);
       pickedZone = z;
       onHoveredZoneChange(z);
-      requestAnimationFrame(() => drawLoupe(cx, cy));
+      requestAnimationFrame(() => drawLoupe(fx, fy));
     };
 
     const onTouchStart = (e: TouchEvent) => {
@@ -283,7 +292,8 @@ export function AnalyzedCanvas({
       if (inLoupe) {
         // Need passive: false so this preventDefault actually suppresses scroll.
         e.preventDefault();
-        const z = zoneAtClient(t.clientX, t.clientY);
+        const [lx, ly] = loupeCenter(t.clientX, t.clientY);
+        const z = zoneAtClient(lx, ly);
         if (z !== pickedZone) {
           pickedZone = z;
           onHoveredZoneChange(z);
