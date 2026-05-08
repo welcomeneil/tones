@@ -163,8 +163,14 @@ export function AnalyzedCanvas({
         ref={canvasRef}
         role="img"
         aria-label={ariaLabel}
-        onMouseMove={(e) => onHoveredZoneChange(zoneAt(e))}
-        onMouseLeave={() => onHoveredZoneChange(null)}
+        onMouseMove={(e) => {
+          if (lockedZone !== null) return;
+          onHoveredZoneChange(zoneAt(e));
+        }}
+        onMouseLeave={() => {
+          if (lockedZone !== null) return;
+          onHoveredZoneChange(null);
+        }}
         onClick={(e) => {
           const z = zoneAt(e);
           if (z === null) return;
