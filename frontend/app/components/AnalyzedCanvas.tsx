@@ -31,7 +31,7 @@ const MERGE_GAP_FRACTION = 0; // bboxes within this fraction of max(W,H) merge (
 // that read too close together for a fingertip. Quick drags still scroll
 // because touch-action is pan-y until the long-press fires.
 const LOUPE_DIAMETER = 132;
-const LOUPE_ZOOM = 6;
+const LOUPE_ZOOM = 3;
 const LOUPE_FINGER_OFFSET = 88;
 const LONG_PRESS_MS = 320;
 const MOVE_CANCEL_PX = 10;
