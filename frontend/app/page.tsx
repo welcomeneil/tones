@@ -265,15 +265,27 @@ export default function Home() {
                     <span
                       role="status"
                       aria-live="polite"
-                      className="pointer-events-none absolute right-3 top-3 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]"
+                      className="text-breath pointer-events-none absolute right-3 top-3 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]"
                     >
                       analyzing
+                      <span className="dot-cycle ml-1">
+                        <span>.</span>
+                        <span>.</span>
+                        <span>.</span>
+                      </span>
                     </span>
                   )}
                 </>
               ) : (
                 <div className="flex h-64 w-full items-center justify-center text-sm text-[var(--muted)]">
-                  {inFlight ? "analyzing…" : "preparing…"}
+                  <span className="text-breath">
+                    {inFlight ? "analyzing" : "preparing"}
+                  </span>
+                  <span className="dot-cycle ml-0.5">
+                    <span>.</span>
+                    <span>.</span>
+                    <span>.</span>
+                  </span>
                 </div>
               )}
             </div>
