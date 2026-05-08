@@ -1,12 +1,12 @@
 # tone zone
 
-A value-study reference tool for painters and illustrators. Drop in a photo,
-pick how many tonal zones you want, and the image is posterized into a flat
+A value-study reference tool for artists. 
+
+Drop in a photo, pick how many tonal zones you want, and the image is posterized into a flat
 grayscale palette — the same exercise art schools call a *value study*, done
 in the browser in real time.
 
-**Live:** [tone-zone on Vercel](https://github.com/welcomeneil/tones) — see the
-"view source" footer of the deployed app for the canonical URL.
+**Live:** [tone-zone on Vercel](https://frontend-chi-pink-19.vercel.app/)
 
 ---
 
@@ -27,10 +27,6 @@ value-block-in pass — and lets you:
   the image and read its Munsell value (0 = black, 10 = white).
 - **Toggle** between the posterized zone map and the original reference
   while keeping zone selection synced.
-
-Every parameter change re-renders in well under a frame. There's no upload,
-no server round-trip, no spinner — the entire pipeline runs in a Web Worker
-on the user's machine.
 
 ---
 
@@ -71,15 +67,11 @@ File ──► downscale to 1200px ──► OffscreenCanvas ──► ImageBitm
 The key insight: every algorithm here is a function of the **value
 distribution**, not the spatial layout. Once the 256-bin histogram is built,
 the math is image-size-independent — k-means runs in microseconds whether
-the photo is 400×400 or 1200×1200. Decode-once, re-segment-cheaply.
+the photo is 400×400 or 1200×1200.
 
 ---
 
 ## The algorithms
-
-Both are ports of the original Python pipeline (numpy + scipy) to TypeScript,
-preserving algorithmic behavior closely enough that output is visually
-indistinguishable.
 
 ### 1-D weighted k-means (`targeted` mode)
 - k-means++ initialization weighted by histogram counts.
@@ -162,18 +154,14 @@ npm run lint
 npx tsc --noEmit   # what CI runs
 ```
 
-Drop an image, pick a mode, drag a slider. That's the whole loop.
-
-No environment variables. No database. No backend service to start.
-
 ---
 
 ## Engineering log highlights
 
 A more detailed decision log lives in [`LEARN.md`](./LEARN.md). The arc:
 
-- **Started** as a notebook-style script (`original_code.py`) — proving you
-  can implement value posterization without copilot help.
+- **Started** as a notebook-style script (`original_code.py`) — implemented
+  value posterization without agentic help.
 - **First production cut** was a two-service deploy: Next.js on Vercel for
   the UI, FastAPI on Fly.io for the pipeline, talking through a same-origin
   Vercel Route Handler that hid the Fly URL and injected a shared internal
@@ -191,10 +179,8 @@ A more detailed decision log lives in [`LEARN.md`](./LEARN.md). The arc:
   budget, the Dockerfile, the proxy routes, and the `ANALYZER_URL` env
   var all went with it.
 
-The lesson kept on the wall: **a backend isn't free even when idle**. Cold
-starts, observability surface, deploy pipeline, dependency upgrades, all
-cost something. Sometimes the highest-leverage performance work is
-deleting the service.
+Cold starts, observability surface, deploy pipeline, dependency upgrades; 
+sometimes the highest-leverage performance work is deleting the service.
 
 ---
 
@@ -207,15 +193,9 @@ deleting the service.
   means seeded centers can land 1–2 grayscale levels off the Python
   pipeline. For a value-study reference aimed at human eyes this is
   invisible.
-- **Abort isn't real cancellation.** A worker can't interrupt a synchronous
-  k-means loop mid-flight; the client just discards the result. Cheap at
-  this scale; would need chunking + a `SharedArrayBuffer` flag if the math
-  got heavier.
 
 ---
 
 ## Credits
 
-Built by [Neil Bisht](https://github.com/welcomeneil). The reference
-inspiration is [tonalvaluetool.com](https://tonalvaluetool.com), which
-showed that this whole exercise belongs in the browser.
+Built by [Neil Bisht](https://github.com/welcomeneil).
