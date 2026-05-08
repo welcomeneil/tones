@@ -123,17 +123,6 @@ Chronological record of significant questions investigated and tradeoffs made. E
 
 ## 2026-04-30 — Mobile responsiveness for footer + sticky palette nav
 
-**Question.** Footer text and the sticky palette nav looked cramped on mobile (≤375px). How to fix without regressing desktop?
-
-**What we did** (`frontend/app/page.tsx`):
-- Footer: replaced single inline string with discrete `<span>` segments inside a `flex flex-wrap items-center gap-x-2 gap-y-1` container. Now wraps at bullet boundaries instead of mid-phrase.
-- Sticky nav row: changed wrapper to `flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-6` so `ModeToggle` and the value readout stack on phones.
-- "locked" hint pill: hidden below `sm` (`hidden sm:inline`). With tap-to-lock UX the lock state is implicit; the pill was redundant on a small viewport.
-
-**Tradeoff.** Mobile loses a vertical row of header height (sticky bar grows) and the explicit "locked" affordance. We bet that the visual lock cue on the palette swatch itself is enough. Alternatives considered: shorten `Vn/N · value X.X` to just `X.X` on mobile (rejected — felt like hiding signal, not noise).
-
-**Concepts to revisit.** Tailwind responsive prefixes (`sm:` etc.) and the mobile-first model; flexbox wrapping vs CSS grid for footer-style segment layouts; when to hide UI hints vs when they're load-bearing.
-
 ## 2026-04-30 — Why analyze feels slow, especially on `n` changes
 
 **Question.** Image analysis is slow on upload and on every value-count change. What's the pipeline and where's the time going?
@@ -222,13 +211,6 @@ Chronological record of significant questions investigated and tradeoffs made. E
 - `gaussian_filter1d` we matched scipy defaults (`mode='reflect'`, `truncate=4`) carefully, so smoothed-histogram values match closely; rare edge cases on very flat histograms could shift a peak index by 1 bin.
 
 For a value-study reference tool aimed at human artists this is invisible. If we ever want strict regression-testing against the Python pipeline, the unit tests at `tests/test_algorithms.py` are the source of truth — we'd need a parallel TS test suite seeded with the same fixtures.
-
-**Tradeoff: AbortSignal but no real cancellation.** A worker can't actually interrupt a sync k-means loop in the middle. Our abort just ignores the response when it arrives; the worker still runs the computation to completion. For 256-bin k-means that's fine (microseconds); if the math ever grew, we'd need to chunk the work and check a shared SharedArrayBuffer flag, or terminate-and-replace the worker on cancel.
-
-**What we did *not* do.**
-- Did not port to WebAssembly. Pure JS is fast enough and trivially debuggable; WASM is the wrong reach right now.
-- Did not delete the Fly backend or the Vercel proxy routes yet. Want to A/B against the Python output on a Vercel preview URL before pulling the rug. Once validated: delete the Python code, delete the proxy routes, stop the Fly machine, remove `ANALYZER_URL` from Vercel env. The Dockerfile and `fly.toml` go too.
-- Did not split the worker bundle from the main bundle manually — Next.js 16 + Turbopack handles `new Worker(new URL("./process.worker.ts", import.meta.url), { type: "module" })` automatically, producing a separate chunk.
 
 **Concepts to revisit.**
 - **Web Workers**: the dedicated-worker model, `postMessage` semantics, the `Transferable` interface (`ArrayBuffer`, `ImageBitmap`, `MessagePort`, `OffscreenCanvas`), and zero-copy transfer vs structured-clone copy.
