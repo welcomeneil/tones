@@ -243,10 +243,10 @@ export default function Home() {
 
             <div className="relative min-h-64">
               {analyzed && bitmap ? (
-                <>
+                <div className="relative">
                   <div
-                    className={`transition-opacity duration-700 ease-in-out ${
-                      showDim ? "opacity-60" : "opacity-100"
+                    className={`transition-opacity duration-500 ease-in-out ${
+                      showDim ? "opacity-50" : "opacity-100"
                     }`}
                   >
                     <AnalyzedCanvas
@@ -262,20 +262,26 @@ export default function Home() {
                     />
                   </div>
                   {showDim && (
-                    <span
-                      role="status"
-                      aria-live="polite"
-                      className="text-breath pointer-events-none absolute right-3 top-3 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]"
-                    >
-                      analyzing
-                      <span className="dot-cycle ml-1">
-                        <span>.</span>
-                        <span>.</span>
-                        <span>.</span>
+                    <>
+                      <div
+                        aria-hidden="true"
+                        className="shimmer-overlay pointer-events-none"
+                      />
+                      <span
+                        role="status"
+                        aria-live="polite"
+                        className="pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--background)]/90 px-3 py-1.5 text-[11px] uppercase tracking-[0.22em] text-[var(--foreground)] shadow-sm backdrop-blur-sm"
+                      >
+                        <span className="text-breath">analyzing</span>
+                        <span className="dot-cycle">
+                          <span>.</span>
+                          <span>.</span>
+                          <span>.</span>
+                        </span>
                       </span>
-                    </span>
+                    </>
                   )}
-                </>
+                </div>
               ) : (
                 <div className="flex h-64 w-full items-center justify-center text-sm text-[var(--muted)]">
                   <span className="text-breath">
@@ -290,12 +296,24 @@ export default function Home() {
               )}
             </div>
 
-            <AlgoToggle value={algoMode} onChange={setAlgoMode} disabled={!blob} />
+            <AlgoToggle
+              value={algoMode}
+              onChange={setAlgoMode}
+              disabled={!blob || inFlight}
+            />
 
             {algoMode === "targeted" ? (
-              <ValueCountPicker value={n} onChange={setN} disabled={!blob} />
+              <ValueCountPicker
+                value={n}
+                onChange={setN}
+                disabled={!blob || inFlight}
+              />
             ) : (
-              <SigmaSlider value={sigma} onChange={setSigma} disabled={!blob} />
+              <SigmaSlider
+                value={sigma}
+                onChange={setSigma}
+                disabled={!blob || inFlight}
+              />
             )}
           </>
         )}
