@@ -245,8 +245,8 @@ export default function Home() {
               {analyzed && bitmap ? (
                 <div className="relative">
                   <div
-                    className={`transition-opacity duration-500 ease-in-out ${
-                      showDim ? "opacity-50" : "opacity-100"
+                    className={`transition-[filter,opacity] duration-500 ease-in-out ${
+                      showDim ? "opacity-40 blur-[1.5px]" : "opacity-100 blur-0"
                     }`}
                   >
                     <AnalyzedCanvas
@@ -262,24 +262,19 @@ export default function Home() {
                     />
                   </div>
                   {showDim && (
-                    <>
-                      <div
-                        aria-hidden="true"
-                        className="shimmer-overlay pointer-events-none"
-                      />
-                      <span
-                        role="status"
-                        aria-live="polite"
-                        className="pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--background)]/90 px-3 py-1.5 text-[11px] uppercase tracking-[0.22em] text-[var(--foreground)] shadow-sm backdrop-blur-sm"
-                      >
-                        <span className="text-breath">analyzing</span>
-                        <span className="dot-cycle">
-                          <span>.</span>
-                          <span>.</span>
-                          <span>.</span>
-                        </span>
+                    <span
+                      role="status"
+                      aria-live="polite"
+                      className="pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-baseline gap-1 font-serif text-2xl italic tracking-tight text-[var(--foreground)]"
+                      style={{ textShadow: "0 1px 12px var(--background)" }}
+                    >
+                      <span className="text-breath">analyzing</span>
+                      <span className="dot-cycle">
+                        <span>.</span>
+                        <span>.</span>
+                        <span>.</span>
                       </span>
-                    </>
+                    </span>
                   )}
                 </div>
               ) : (
