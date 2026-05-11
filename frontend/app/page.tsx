@@ -207,7 +207,14 @@ export default function Home() {
         <p className="text-right text-[10px] uppercase tracking-[0.2em] leading-relaxed text-[var(--muted)]">
           a reference tool
           <br />
-          <span className="text-[var(--foreground)]">by neil</span>
+          <a
+            href="https://neil.ink/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[var(--foreground)] underline-offset-4 hover:underline"
+          >
+            by neil
+          </a>
         </p>
       </header>
 
@@ -331,9 +338,12 @@ export default function Home() {
       <footer className="mt-auto flex flex-wrap items-center justify-center gap-x-2 gap-y-1 border-t border-[var(--border)] pt-6 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
         <span>value-study reference</span>
         <span aria-hidden="true">·</span>
-        <span>neil bisht</span>
-        <span aria-hidden="true">·</span>
-        <span>2026</span>
+        <a
+          href="/info"
+          className="underline underline-offset-4 hover:text-[var(--foreground)]"
+        >
+          info
+        </a>
         <span aria-hidden="true">·</span>
         <a
           href="https://github.com/welcomeneil/tones"
