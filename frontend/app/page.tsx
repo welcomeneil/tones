@@ -154,19 +154,6 @@ export default function Home() {
     return () => clearTimeout(t);
   }, [error]);
 
-  const [showDim, setShowDim] = useState(false);
-  useEffect(() => {
-    if (!inFlight) {
-      // Reset on transition from in-flight to idle. Synchronous setState in
-      // effect is the right pattern here: we need to drive an external timer.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setShowDim(false);
-      return;
-    }
-    const t = setTimeout(() => setShowDim(true), 200);
-    return () => clearTimeout(t);
-  }, [inFlight]);
-
   const selectedLum =
     selectedZone !== null && result ? result.palette[selectedZone] ?? null : null;
   // Munsell value: 0 = black, 10 = white. 255-grayscale → /25.5.
@@ -367,31 +354,6 @@ export default function Home() {
           view source
         </a>
       </footer>
-
-      {showDim && (
-        <div
-          role="status"
-          aria-live="polite"
-          aria-busy="true"
-          className="processing-veil pointer-events-none fixed inset-0 z-50 flex items-center justify-center"
-        >
-          <div className="processing-rule absolute inset-x-0 top-0 h-px" aria-hidden="true" />
-          <div className="processing-rule absolute inset-x-0 bottom-0 h-px" aria-hidden="true" />
-          <div className="flex flex-col items-center gap-3">
-            <span className="font-serif text-5xl italic leading-none tracking-tight text-[var(--foreground)] sm:text-6xl">
-              <span className="text-breath">analyzing</span>
-              <span className="dot-cycle">
-                <span>.</span>
-                <span>.</span>
-                <span>.</span>
-              </span>
-            </span>
-            <span className="text-[10px] uppercase tracking-[0.32em] text-[var(--muted)]">
-              rendering palette
-            </span>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

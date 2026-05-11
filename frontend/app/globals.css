@@ -94,36 +94,6 @@ body {
 .dot-cycle > span:nth-child(2) { animation-delay: 0.18s; }
 .dot-cycle > span:nth-child(3) { animation-delay: 0.36s; }
 
-@keyframes veil-fade-in {
-  from { opacity: 0; backdrop-filter: blur(0); -webkit-backdrop-filter: blur(0); }
-  to   { opacity: 1; backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
-}
-
-.processing-veil {
-  background: color-mix(in srgb, var(--background) 78%, transparent);
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
-  animation: veil-fade-in 280ms ease-out both;
-}
-
-@keyframes rule-sweep {
-  0%   { transform: scaleX(0); transform-origin: 0% 50%; }
-  45%  { transform: scaleX(1); transform-origin: 0% 50%; }
-  55%  { transform: scaleX(1); transform-origin: 100% 50%; }
-  100% { transform: scaleX(0); transform-origin: 100% 50%; }
-}
-
-.processing-rule {
-  background: var(--foreground);
-  opacity: 0.35;
-  animation: rule-sweep 2.4s ease-in-out infinite;
-  will-change: transform;
-}
-
-.processing-veil .processing-rule:last-of-type {
-  animation-delay: 1.2s;
-}
-
 @keyframes stagger-in {
   from {
     opacity: 0;
@@ -198,13 +168,6 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .processing-veil {
-    animation: none;
-  }
-  .processing-rule {
-    animation: none;
-    transform: scaleX(1);
-  }
   .stagger-in {
     animation: none;
     opacity: 1;
