@@ -124,6 +124,79 @@ body {
   animation-delay: 1.2s;
 }
 
+@keyframes stagger-in {
+  from {
+    opacity: 0;
+    filter: blur(6px);
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+}
+
+.stagger-in {
+  animation: stagger-in 0.76s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.stagger-1 { animation-delay: 40ms; }
+.stagger-2 { animation-delay: 140ms; }
+.stagger-3 { animation-delay: 240ms; }
+.stagger-4 { animation-delay: 340ms; }
+.stagger-5 { animation-delay: 440ms; }
+.stagger-6 { animation-delay: 540ms; }
+.stagger-7 { animation-delay: 640ms; }
+.stagger-8 { animation-delay: 740ms; }
+.stagger-9 { animation-delay: 840ms; }
+
+.reveal {
+  opacity: 0;
+  filter: blur(6px);
+  transform: translateY(8px);
+  transition:
+    opacity 0.76s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.76s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.76s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform, filter;
+}
+
+.reveal[data-visible="true"] {
+  opacity: 1;
+  filter: blur(0);
+  transform: translateY(0);
+}
+
+.faq-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.32s ease-out;
+}
+
+.faq-panel[data-open="true"] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.faq-panel > .faq-panel-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.faq-caret {
+  display: inline-block;
+  transition: transform 0.36s cubic-bezier(0.22, 1, 0.36, 1);
+  transform-origin: center;
+}
+
+.faq-trigger[aria-expanded="true"] .faq-caret {
+  transform: rotate(45deg);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .processing-veil {
     animation: none;
@@ -131,5 +204,22 @@ body {
   .processing-rule {
     animation: none;
     transform: scaleX(1);
+  }
+  .stagger-in {
+    animation: none;
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+  .reveal,
+  .reveal[data-visible="true"] {
+    opacity: 1;
+    filter: none;
+    transform: none;
+    transition: none;
+  }
+  .faq-panel,
+  .faq-caret {
+    transition: none;
   }
 }

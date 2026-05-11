@@ -200,7 +200,7 @@ export default function Home() {
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-12 px-6 py-16 sm:px-10 sm:py-24">
-      <header className="flex items-start justify-between">
+      <header className="stagger-in stagger-1 flex items-baseline justify-between">
         <h1 className="font-serif text-3xl tracking-tight text-[var(--foreground)]">
           tone zone
         </h1>
@@ -211,33 +211,42 @@ export default function Home() {
             href="https://neil.ink/"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[var(--foreground)] underline-offset-4 hover:underline"
+            className="group inline-flex items-baseline gap-1 text-[var(--foreground)] underline decoration-[var(--muted)] decoration-1 underline-offset-4 transition-colors hover:text-[var(--accent)] hover:decoration-[var(--accent)]"
           >
             by neil
+            <span aria-hidden="true" className="transition-transform group-hover:-translate-y-px group-hover:translate-x-px">
+              ↗
+            </span>
           </a>
         </p>
       </header>
 
-      <hr className="border-t border-[var(--border)]" />
+      <hr className="stagger-in stagger-2 border-t border-[var(--border)]" />
 
-      <main className="flex flex-col gap-10">
+      <main
+        className={`flex flex-col gap-10 ${
+          !file ? "flex-1 justify-center" : ""
+        }`}
+      >
         {!file && (
           <>
-            <h2 className="text-center font-serif text-4xl leading-snug text-[var(--foreground)]">
+            <h2 className="stagger-in stagger-3 text-center font-serif text-4xl leading-snug text-[var(--foreground)]">
               Upload a reference.
             </h2>
-            <DropZone
-              onFile={(f) => {
-                setError(null);
-                setFile(f);
-              }}
-            />
+            <div className="stagger-in stagger-4">
+              <DropZone
+                onFile={(f) => {
+                  setError(null);
+                  setFile(f);
+                }}
+              />
+            </div>
           </>
         )}
 
         {file && (
           <>
-            <div className="flex items-baseline justify-between">
+            <div className="stagger-in stagger-3 flex items-baseline justify-between">
               <p className="font-mono text-xs text-[var(--muted)]">{file.name}</p>
               <button
                 type="button"
@@ -248,7 +257,7 @@ export default function Home() {
               </button>
             </div>
 
-            <div className="relative min-h-64">
+            <div className="stagger-in stagger-4 relative min-h-64">
               {analyzed && bitmap ? (
                 <AnalyzedCanvas
                   result={analyzed.result}
@@ -275,13 +284,17 @@ export default function Home() {
               )}
             </div>
 
-            <AlgoToggle value={algoMode} onChange={setAlgoMode} disabled={!blob} />
+            <div className="stagger-in stagger-5">
+              <AlgoToggle value={algoMode} onChange={setAlgoMode} disabled={!blob} />
+            </div>
 
-            {algoMode === "targeted" ? (
-              <ValueCountPicker value={n} onChange={setN} disabled={!blob} />
-            ) : (
-              <SigmaSlider value={sigma} onChange={setSigma} disabled={!blob} />
-            )}
+            <div className="stagger-in stagger-6">
+              {algoMode === "targeted" ? (
+                <ValueCountPicker value={n} onChange={setN} disabled={!blob} />
+              ) : (
+                <SigmaSlider value={sigma} onChange={setSigma} disabled={!blob} />
+              )}
+            </div>
           </>
         )}
 
@@ -307,7 +320,7 @@ export default function Home() {
       </main>
 
       {file && result && (
-        <div className="sticky bottom-0 z-10 flex flex-col gap-3 border-t border-[var(--border)] bg-[var(--background)] py-4">
+        <div className="stagger-in stagger-7 sticky bottom-0 z-10 flex flex-col gap-3 border-t border-[var(--border)] bg-[var(--background)] py-4">
           <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
             <ModeToggle value={viewMode} onChange={setViewMode} disabled={!result} />
             <p className="min-h-5 font-mono text-sm tabular-nums text-[var(--foreground)]">
@@ -335,7 +348,7 @@ export default function Home() {
         </div>
       )}
 
-      <footer className="mt-auto flex flex-wrap items-center justify-center gap-x-2 gap-y-1 border-t border-[var(--border)] pt-6 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
+      <footer className="stagger-in stagger-8 mt-auto flex flex-wrap items-center justify-center gap-x-2 gap-y-1 border-t border-[var(--border)] pt-6 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
         <span>value-study reference</span>
         <span aria-hidden="true">·</span>
         <a
