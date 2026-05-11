@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { AnalyzedCanvas } from "./components/AnalyzedCanvas";
 import { DropZone } from "./components/DropZone";
@@ -342,12 +343,12 @@ export default function Home() {
       <footer className="stagger-in stagger-8 mt-auto flex flex-wrap items-center justify-center gap-x-2 gap-y-1 border-t border-[var(--border)] pt-6 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
         <span>value-study reference</span>
         <span aria-hidden="true">·</span>
-        <a
+        <Link
           href="/info"
           className="underline underline-offset-4 hover:text-[var(--foreground)]"
         >
           info
-        </a>
+        </Link>
         <span aria-hidden="true">·</span>
         <a
           href="https://github.com/welcomeneil/tones"
