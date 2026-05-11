@@ -40,11 +40,22 @@ const FAQS: Faq[] = [
 
 type VideoLink = { title: string; channel: string; href: string };
 
-// TODO(neil): replace href="#" with the real YouTube URLs.
 const VIDEOS: VideoLink[] = [
-  { title: "Value study — placeholder title", channel: "channel name", href: "#" },
-  { title: "Value study — placeholder title", channel: "channel name", href: "#" },
-  { title: "Value study — placeholder title", channel: "channel name", href: "#" },
+  {
+    title: "How I Learned GRAYSCALE | Self Taught Value Studies",
+    channel: "Adrift Arts",
+    href: "https://www.youtube.com/watch?v=rpMAHUAxIsg",
+  },
+  {
+    title: "Train Your Eyes to See Values",
+    channel: "Proko",
+    href: "https://www.youtube.com/watch?v=RFQtsXktc9g&t=5s",
+  },
+  {
+    title: "How To See in Value — Part 1: Observation Strategies",
+    channel: "DRAW with Chris",
+    href: "https://www.youtube.com/watch?v=zG7qa9daAbw",
+  },
 ];
 
 export default function InfoPage() {
