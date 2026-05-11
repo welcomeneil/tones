@@ -6,6 +6,9 @@ type Props = {
   palette: number[];
   selectedZone: number | null;
   lockedZone: number | null;
+  // When set, only these zone indices are shown — used by the region filter.
+  // Labels still read "V3/5" so the underlying global value stays legible.
+  visibleZones?: readonly number[] | null;
   onHoveredZoneChange: (zone: number | null) => void;
   onLockedZoneChange: (zone: number | null) => void;
 };
@@ -14,10 +17,12 @@ export function PaletteStrip({
   palette,
   selectedZone,
   lockedZone,
+  visibleZones,
   onHoveredZoneChange,
   onLockedZoneChange,
 }: Props) {
   const n = palette.length;
+  const visibleSet = visibleZones ? new Set(visibleZones) : null;
   const containerRef = useRef<HTMLDivElement>(null);
   const slideRef = useRef({
     active: false,
@@ -124,6 +129,7 @@ export function PaletteStrip({
       onPointerCancel={handlePointerEnd}
     >
       {palette.map((luminosity, idx) => {
+        if (visibleSet && !visibleSet.has(idx)) return null;
         const active = selectedZone === idx;
         const locked = lockedZone === idx;
         const dimmed = selectedZone !== null && !active;

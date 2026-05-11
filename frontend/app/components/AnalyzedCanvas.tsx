@@ -11,8 +11,10 @@ type Props = {
   mode: RenderMode;
   selectedZone: number | null;
   lockedZone: number | null;
+  regionActive: boolean;
   onHoveredZoneChange: (zone: number | null) => void;
   onLockedZoneChange: (zone: number | null) => void;
+  onRegionSelect: (zones: number[] | null) => void;
 };
 
 // Bi-tonal bracket: vermilion core stroked over a cream halo. Both
@@ -47,8 +49,17 @@ const MOVE_CANCEL_PX = 10;
 const ZOOM_MIN = 1;
 const ZOOM_MAX = 5;
 const WHEEL_SENSITIVITY = 0.005;
-const RESET_EASING = "cubic-bezier(0.34, 1.56, 0.64, 1)";
-const RESET_DURATION_MS = 280;
+// Gentle back-out: a touch of overshoot for life, well short of the original
+// 1.56 spring so the bounce reads as a settle rather than a snap-and-rebound.
+// Duration nudged up to give the softer curve room to breathe.
+const RESET_EASING = "cubic-bezier(0.33, 1.15, 0.55, 1)";
+const RESET_DURATION_MS = 360;
+
+// Region select (desktop): plain left-drag a box → zoom to fit and filter the
+// palette to the zones present inside it. A bare click (no drag past the
+// threshold) still falls through to the lock-zone handler on the canvas.
+const REGION_DRAG_PX = 6; // pointer travel before a press becomes a drawn box
+const REGION_MIN_PX = 16; // boxes thinner than this on either side are ignored
 
 type Bbox = {
   x0: number;
@@ -66,8 +77,10 @@ export function AnalyzedCanvas({
   mode,
   selectedZone,
   lockedZone,
+  regionActive,
   onHoveredZoneChange,
   onLockedZoneChange,
+  onRegionSelect,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
@@ -77,6 +90,17 @@ export function AnalyzedCanvas({
   const [loupeActive, setLoupeActive] = useState(false);
   const [zoom, setZoom] = useState({ s: 1, tx: 0, ty: 0 });
   const [zoomTransition, setZoomTransition] = useState(false);
+  // Live box-select state: dragRect is wrapper-local CSS px (for the visible
+  // rectangle); dragRef holds the in-progress gesture, suppressClickRef eats
+  // the synthetic click that trails a completed drag.
+  const [dragRect, setDragRect] = useState<{
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  } | null>(null);
+  const dragRef = useRef({ active: false, moved: false, startX: 0, startY: 0 });
+  const suppressClickRef = useRef(false);
   // Mirror state into a ref so touch handlers (bound once) can read latest
   // zoom without rebinding listeners — rebinding mid-gesture drops events.
   const zoomRef = useRef(zoom);
@@ -95,25 +119,32 @@ export function AnalyzedCanvas({
     setZoomTransition(false);
   }, [result.width, result.height]);
 
-  const clampZoom = useCallback((s: number, tx: number, ty: number) => {
-    const wrapper = wrapperRef.current;
-    const cs = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, s));
-    if (!wrapper) return { s: cs, tx, ty };
-    const rect = wrapper.getBoundingClientRect();
-    // transform-origin is 0 0, so at scale cs the content extends from tx to
-    // tx + width*cs. Clamp so the content always covers the wrapper viewport.
-    const minTx = rect.width - rect.width * cs;
-    const minTy = rect.height - rect.height * cs;
-    return {
-      s: cs,
-      tx: Math.min(0, Math.max(minTx, tx)),
-      ty: Math.min(0, Math.max(minTy, ty)),
-    };
-  }, []);
+  // maxS defaults to ZOOM_MAX for wheel/pinch (normal feel), but the region-
+  // zoom path passes Infinity so a tiny user-drawn box can fully fill the
+  // viewport regardless of the wheel cap.
+  const clampZoom = useCallback(
+    (s: number, tx: number, ty: number, maxS: number = ZOOM_MAX) => {
+      const wrapper = wrapperRef.current;
+      const cs = Math.max(ZOOM_MIN, Math.min(maxS, s));
+      if (!wrapper) return { s: cs, tx, ty };
+      const rect = wrapper.getBoundingClientRect();
+      // transform-origin is 0 0, so at scale cs the content extends from tx to
+      // tx + width*cs. Clamp so the content always covers the wrapper viewport.
+      const minTx = rect.width - rect.width * cs;
+      const minTy = rect.height - rect.height * cs;
+      return {
+        s: cs,
+        tx: Math.min(0, Math.max(minTx, tx)),
+        ty: Math.min(0, Math.max(minTy, ty)),
+      };
+    },
+    [],
+  );
 
   const resetZoom = () => {
     setZoomTransition(true);
     setZoom({ s: 1, tx: 0, ty: 0 });
+    onRegionSelect(null);
     window.setTimeout(() => setZoomTransition(false), RESET_DURATION_MS + 20);
   };
 
@@ -146,10 +177,14 @@ export function AnalyzedCanvas({
     if (!overlay || !base) return;
 
     const draw = () => {
-      const rect = base.getBoundingClientRect();
+      // offsetWidth/Height instead of getBoundingClientRect so the overlay
+      // backing store is sized from the pre-transform layout box. Under heavy
+      // zoom the rect grows past the browser's max canvas size (~16384px),
+      // and the overlay paints blank — which reads as the whole canvas going
+      // white because it sits on top of the base.
       const dpr = window.devicePixelRatio || 1;
-      const dw = Math.max(1, Math.round(rect.width * dpr));
-      const dh = Math.max(1, Math.round(rect.height * dpr));
+      const dw = Math.max(1, Math.round(base.offsetWidth * dpr));
+      const dh = Math.max(1, Math.round(base.offsetHeight * dpr));
       if (overlay.width !== dw) overlay.width = dw;
       if (overlay.height !== dh) overlay.height = dh;
       const ctx = overlay.getContext("2d");
@@ -237,17 +272,117 @@ export function AnalyzedCanvas({
       const ay = e.clientY - rect.top;
       setZoomTransition(false);
       setZoom((prev) => {
-        const newS = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, prev.s * factor));
+        // Honour any region zoom already past ZOOM_MAX so wheel-out doesn't
+        // snap them back down; wheel-in past the prevailing max is still capped.
+        const maxS = Math.max(ZOOM_MAX, prev.s);
+        const newS = Math.max(ZOOM_MIN, Math.min(maxS, prev.s * factor));
         if (newS === prev.s) return prev;
         const k = newS / prev.s;
         const tx = ax - (ax - prev.tx) * k;
         const ty = ay - (ay - prev.ty) * k;
-        return clampZoom(newS, tx, ty);
+        return clampZoom(newS, tx, ty, maxS);
       });
     };
     wrapper.addEventListener("wheel", onWheel, { passive: false });
     return () => wrapper.removeEventListener("wheel", onWheel);
   }, [clampZoom]);
+
+  // Desktop box-select. mousedown (handled on the canvas) arms a candidate;
+  // once the pointer travels past REGION_DRAG_PX it becomes a drawn rectangle,
+  // and mouseup then zooms to fit it and reports the zones inside. A press with
+  // no travel is left untouched so the canvas onClick still toggles the lock.
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      const drag = dragRef.current;
+      if (!drag.active) return;
+      if (!drag.moved) {
+        if (Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) < REGION_DRAG_PX) {
+          return;
+        }
+        drag.moved = true;
+      }
+      const wrapper = wrapperRef.current;
+      if (!wrapper) return;
+      const r = wrapper.getBoundingClientRect();
+      const clamp = (v: number, max: number) => Math.max(0, Math.min(max, v));
+      const x0 = clamp(Math.min(drag.startX, e.clientX) - r.left, r.width);
+      const x1 = clamp(Math.max(drag.startX, e.clientX) - r.left, r.width);
+      const y0 = clamp(Math.min(drag.startY, e.clientY) - r.top, r.height);
+      const y1 = clamp(Math.max(drag.startY, e.clientY) - r.top, r.height);
+      setDragRect({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
+    };
+
+    const onUp = (e: MouseEvent) => {
+      const drag = dragRef.current;
+      if (!drag.active) return;
+      drag.active = false;
+      setDragRect(null);
+      if (!drag.moved) return; // bare click → leave it for the canvas onClick
+      suppressClickRef.current = true; // we dragged; swallow the trailing click
+      window.setTimeout(() => {
+        suppressClickRef.current = false;
+      }, 100); // safety net if the click never lands (mouseup left the canvas)
+
+      const canvas = canvasRef.current;
+      const wrapper = wrapperRef.current;
+      if (!canvas || !wrapper) return;
+      const cRect = canvas.getBoundingClientRect();
+      const wRect = wrapper.getBoundingClientRect();
+
+      // Box in client coords, clamped to the visible canvas.
+      const bx0 = Math.max(Math.min(drag.startX, e.clientX), cRect.left);
+      const bx1 = Math.min(Math.max(drag.startX, e.clientX), cRect.right);
+      const by0 = Math.max(Math.min(drag.startY, e.clientY), cRect.top);
+      const by1 = Math.min(Math.max(drag.startY, e.clientY), cRect.bottom);
+      if (bx1 - bx0 < REGION_MIN_PX || by1 - by0 < REGION_MIN_PX) return;
+
+      // → image-pixel rect (same mapping the canvas uses for zoneAt).
+      const px0 = Math.max(0, Math.floor(((bx0 - cRect.left) / cRect.width) * result.width));
+      const px1 = Math.min(result.width, Math.ceil(((bx1 - cRect.left) / cRect.width) * result.width));
+      const py0 = Math.max(0, Math.floor(((by0 - cRect.top) / cRect.height) * result.height));
+      const py1 = Math.min(result.height, Math.ceil(((by1 - cRect.top) / cRect.height) * result.height));
+
+      const { width: W, data } = zoneIndexData;
+      const seen = new Set<number>();
+      for (let y = py0; y < py1; y++) {
+        for (let x = px0; x < px1; x++) seen.add(data[(y * W + x) * 4]);
+      }
+      if (seen.size === 0) return;
+      onRegionSelect(Array.from(seen).sort((a, b) => a - b));
+      if (lockedZone !== null && !seen.has(lockedZone)) onLockedZoneChange(null);
+
+      // Zoom to fit the box. A client point maps to the inner content's
+      // unscaled CSS-px coord u via (clientX - wrapperLeft - tx) / s; transform
+      // origin is 0 0, so re-centering is just translate = center - u*newS.
+      const z = zoomRef.current;
+      const u0 = (bx0 - wRect.left - z.tx) / z.s;
+      const u1 = (bx1 - wRect.left - z.tx) / z.s;
+      const v0 = (by0 - wRect.top - z.ty) / z.s;
+      const v1 = (by1 - wRect.top - z.ty) / z.s;
+      const bw = u1 - u0;
+      const bh = v1 - v0;
+      if (bw <= 0 || bh <= 0) return;
+      // Min-fit so the entire box ends up inside the viewport; uncapped so a
+      // small region can fully fill (the wheel cap doesn't apply to a deliberate
+      // box-select). ZOOM_MIN still keeps no-op huge boxes from zooming out.
+      const newS = Math.max(
+        ZOOM_MIN,
+        Math.min(wRect.width / bw, wRect.height / bh),
+      );
+      const newTx = wRect.width / 2 - ((u0 + u1) / 2) * newS;
+      const newTy = wRect.height / 2 - ((v0 + v1) / 2) * newS;
+      setZoomTransition(true);
+      setZoom(clampZoom(newS, newTx, newTy, Number.POSITIVE_INFINITY));
+      window.setTimeout(() => setZoomTransition(false), RESET_DURATION_MS + 20);
+    };
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [result, zoneIndexData, lockedZone, clampZoom, onRegionSelect, onLockedZoneChange]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -423,7 +558,9 @@ export function AnalyzedCanvas({
         // this fuses zoom-around-anchor and 2-finger pan in a single update.
         const tx = cx - rect.left - (pinch.cx - rect.left - pinch.baseTx) * k;
         const ty = cy - rect.top - (pinch.cy - rect.top - pinch.baseTy) * k;
-        setZoom(clampZoom(newS, tx, ty));
+        // Mirror the wheel handler: allow whatever zoom was in effect at gesture
+        // start (so pinching after a region zoom doesn't snap back to ZOOM_MAX).
+        setZoom(clampZoom(newS, tx, ty, Math.max(ZOOM_MAX, pinch.baseS)));
         return;
       }
       const t = e.touches[0];
@@ -510,16 +647,30 @@ export function AnalyzedCanvas({
           ref={canvasRef}
           role="img"
           aria-label={ariaLabel}
+          onMouseDown={(e) => {
+            if (e.button !== 0 || wasTouchRef.current) return;
+            dragRef.current = {
+              active: true,
+              moved: false,
+              startX: e.clientX,
+              startY: e.clientY,
+            };
+            e.preventDefault(); // suppress text selection / native image drag
+          }}
           onMouseMove={(e) => {
-            if (lockedZone !== null) return;
+            if (dragRef.current.active || lockedZone !== null) return;
             onHoveredZoneChange(zoneAt(e));
           }}
           onMouseLeave={() => {
-            if (lockedZone !== null) return;
+            if (dragRef.current.active || lockedZone !== null) return;
             onHoveredZoneChange(null);
           }}
           onClick={(e) => {
             if (wasTouchRef.current) return;
+            if (suppressClickRef.current) {
+              suppressClickRef.current = false;
+              return;
+            }
             const z = zoneAt(e);
             if (z === null) return;
             onLockedZoneChange(lockedZone === z ? null : z);
@@ -533,7 +684,21 @@ export function AnalyzedCanvas({
           className="pointer-events-none absolute inset-0 h-full w-full"
         />
       </div>
-      {isZoomed && (
+      {dragRect && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute z-20"
+          style={{
+            left: dragRect.x,
+            top: dragRect.y,
+            width: dragRect.w,
+            height: dragRect.h,
+            border: `1.5px solid ${CORE_COLOR}`,
+            boxShadow: `0 0 0 1.5px ${HALO_COLOR}, inset 0 0 0 1.5px ${HALO_COLOR}`,
+          }}
+        />
+      )}
+      {(isZoomed || regionActive) && (
         <button
           type="button"
           onClick={resetZoom}

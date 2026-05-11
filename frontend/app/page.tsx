@@ -1,12 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlgoToggle, type AlgoMode } from "./components/AlgoToggle";
 import { AnalyzedCanvas } from "./components/AnalyzedCanvas";
 import { DropZone } from "./components/DropZone";
 import { ModeToggle } from "./components/ModeToggle";
 import { PaletteStrip } from "./components/PaletteStrip";
-import { SigmaSlider } from "./components/SigmaSlider";
 import { ValueCountPicker } from "./components/ValueCountPicker";
 import {
   type AnalyzedAssets,
@@ -14,7 +12,7 @@ import {
   toAnalyzedAssets,
 } from "./lib/api";
 import { downscaleImage } from "./lib/downscale";
-import type { Algorithm, RenderMode } from "./lib/types";
+import type { RenderMode } from "./lib/types";
 
 const ANALYZE_DEBOUNCE_MS = 400;
 const DEFAULT_SIGMA = 2.0;
@@ -25,14 +23,14 @@ export default function Home() {
   const [blob, setBlob] = useState<Blob | null>(null);
   const [bitmap, setBitmap] = useState<ImageBitmap | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
-  const [algoMode, setAlgoMode] = useState<AlgoMode>("targeted");
   const [n, setN] = useState(DEFAULT_N);
-  const [sigma, setSigma] = useState(DEFAULT_SIGMA);
   const [viewMode, setViewMode] = useState<RenderMode>("zones");
   const [analyzed, setAnalyzed] = useState<AnalyzedAssets | null>(null);
   const result = analyzed?.result ?? null;
   const [hoveredZone, setHoveredZone] = useState<number | null>(null);
   const [lockedZone, setLockedZone] = useState<number | null>(null);
+  // Zone indices present inside a user-drawn region box; null = whole image.
+  const [regionZones, setRegionZones] = useState<number[] | null>(null);
   const [inFlight, setInFlight] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,7 +41,6 @@ export default function Home() {
     return workerRef.current;
   };
   const selectedZone = hoveredZone ?? lockedZone;
-  const algo: Algorithm = algoMode === "targeted" ? "kmeans" : "peaks";
 
   useEffect(() => {
     if (!file) return;
@@ -100,7 +97,7 @@ export default function Home() {
       setInFlight(true);
       setError(null);
       getWorker()
-        .analyze({ algo, n, sigma }, ctrl.signal)
+        .analyze({ algo: "kmeans", n, sigma: DEFAULT_SIGMA }, ctrl.signal)
         .then((msg) => {
           if (ctrl.signal.aborted) {
             msg.zoneMap.close();
@@ -113,6 +110,7 @@ export default function Home() {
           });
           setHoveredZone(null);
           setLockedZone(null);
+          setRegionZones(null);
         })
         .catch((err: unknown) => {
           if (err instanceof DOMException && err.name === "AbortError") return;
@@ -127,7 +125,7 @@ export default function Home() {
         });
     }, ANALYZE_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [imageLoaded, algo, n, sigma]);
+  }, [imageLoaded, n]);
 
   useEffect(() => {
     return () => {
@@ -141,6 +139,7 @@ export default function Home() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setLockedZone(null);
+        setRegionZones(null);
         setError(null);
       }
     };
@@ -178,10 +177,9 @@ export default function Home() {
     setError(null);
     setHoveredZone(null);
     setLockedZone(null);
+    setRegionZones(null);
     setInFlight(false);
-    setAlgoMode("targeted");
     setN(DEFAULT_N);
-    setSigma(DEFAULT_SIGMA);
     setViewMode("zones");
   };
 
@@ -254,8 +252,10 @@ export default function Home() {
                   mode={viewMode}
                   selectedZone={selectedZone}
                   lockedZone={lockedZone}
+                  regionActive={regionZones !== null}
                   onHoveredZoneChange={setHoveredZone}
                   onLockedZoneChange={setLockedZone}
+                  onRegionSelect={setRegionZones}
                 />
               ) : (
                 <div className="flex h-64 w-full items-center justify-center text-sm text-[var(--muted)]">
@@ -272,15 +272,7 @@ export default function Home() {
             </div>
 
             <div className="stagger-in stagger-5">
-              <AlgoToggle value={algoMode} onChange={setAlgoMode} disabled={!blob} />
-            </div>
-
-            <div className="stagger-in stagger-6">
-              {algoMode === "targeted" ? (
-                <ValueCountPicker value={n} onChange={setN} disabled={!blob} />
-              ) : (
-                <SigmaSlider value={sigma} onChange={setSigma} disabled={!blob} />
-              )}
+              <ValueCountPicker value={n} onChange={setN} disabled={!blob} />
             </div>
           </>
         )}
@@ -310,25 +302,38 @@ export default function Home() {
         <div className="stagger-in stagger-7 sticky bottom-0 z-10 flex flex-col gap-3 border-t border-[var(--border)] bg-[var(--background)] py-4">
           <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
             <ModeToggle value={viewMode} onChange={setViewMode} disabled={!result} />
-            <p className="min-h-5 font-mono text-sm tabular-nums text-[var(--foreground)]">
-              {selectedZone !== null && munsellValue !== null && (
-                <>
-                  V{selectedZone + 1}/{paletteSize}{" "}
-                  <span className="text-[var(--border)]">·</span> value{" "}
-                  {munsellValue}
-                  {lockedZone !== null && (
-                    <span className="ml-3 hidden text-[10px] uppercase tracking-[0.2em] text-[var(--muted)] sm:inline">
-                      locked
-                    </span>
-                  )}
-                </>
+            <div className="flex items-center gap-4">
+              {regionZones !== null && (
+                <button
+                  type="button"
+                  onClick={() => setRegionZones(null)}
+                  className="text-[10px] uppercase tracking-[0.2em] text-[var(--accent)] hover:text-[var(--foreground)]"
+                >
+                  region · {regionZones.length}{" "}
+                  {regionZones.length === 1 ? "value" : "values"} ✕
+                </button>
               )}
-            </p>
+              <p className="min-h-5 font-mono text-sm tabular-nums text-[var(--foreground)]">
+                {selectedZone !== null && munsellValue !== null && (
+                  <>
+                    V{selectedZone + 1}/{paletteSize}{" "}
+                    <span className="text-[var(--border)]">·</span> value{" "}
+                    {munsellValue}
+                    {lockedZone !== null && (
+                      <span className="ml-3 hidden text-[10px] uppercase tracking-[0.2em] text-[var(--muted)] sm:inline">
+                        locked
+                      </span>
+                    )}
+                  </>
+                )}
+              </p>
+            </div>
           </div>
           <PaletteStrip
             palette={result.palette}
             selectedZone={selectedZone}
             lockedZone={lockedZone}
+            visibleZones={regionZones}
             onHoveredZoneChange={setHoveredZone}
             onLockedZoneChange={setLockedZone}
           />

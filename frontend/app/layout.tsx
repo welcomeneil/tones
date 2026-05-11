@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Cormorant_Garamond, DM_Sans } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
+import { AnimationGate } from "./components/AnimationGate";
 import "./globals.css";
 
 const cormorant = Cormorant_Garamond({
@@ -21,7 +22,7 @@ const dmSans = DM_Sans({
 export const metadata: Metadata = {
   title: "tone zone",
   description:
-    "A reference tool for artists who draw tonally — upload an image, adjust gaze distance, find the values.",
+    "A reference tool for artists.",
 };
 
 export default function RootLayout({
@@ -35,6 +36,7 @@ export default function RootLayout({
       className={`${cormorant.variable} ${dmSans.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <AnimationGate />
         {children}
         <Analytics />
       </body>

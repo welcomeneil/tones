@@ -21,14 +21,6 @@ const FAQS: Faq[] = [
     a: "Two or three zones force the strongest read and are useful for thumbnails. Five to seven are closer to a finished study. Start low, then add — it is easier to see structure with fewer zones.",
   },
   {
-    q: "Targeted vs. natural — which one?",
-    a: "Targeted (k-means) splits the image into exactly N zones, evenly distributed across the value range. Natural (peaks) finds the values the image is actually built from and may return fewer zones — closer to how the eye groups light.",
-  },
-  {
-    q: "What does the gaze slider do?",
-    a: "It controls how much the image is softened before zones are found — like squinting or stepping back. More blur collapses detail and emphasizes large value shapes.",
-  },
-  {
     q: "What does the number under the palette mean?",
     a: "It is the Munsell value, a 0–10 scale where 0 is black and 10 is white. Useful when matching paint or pencil values to what you see.",
   },
@@ -85,8 +77,7 @@ export default function InfoPage() {
           <p className="max-w-2xl text-base leading-relaxed text-[var(--foreground)]">
             Tone zone reduces a photograph to its underlying value structure —
             the same way a painter squints at a scene to collapse detail and
-            see the big shapes. Upload a reference, adjust how far back you are
-            standing, and read the values directly.
+            see the big shapes. Upload a reference, and read the values.
           </p>
         </section>
 

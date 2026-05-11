@@ -14,7 +14,7 @@ export function SigmaSlider({ value, onChange, disabled }: Props) {
           htmlFor="sigma"
           className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]"
         >
-          gaze distance
+          squint
         </label>
         <span className="font-mono text-xs tabular-nums text-[var(--foreground)]">
           σ {value.toFixed(1)}

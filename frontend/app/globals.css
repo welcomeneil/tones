@@ -108,18 +108,24 @@ body {
 }
 
 .stagger-in {
-  animation: stagger-in 0.76s cubic-bezier(0.22, 1, 0.36, 1) both;
+  opacity: 0;
+  filter: blur(6px);
+  transform: translateY(6px);
 }
 
-.stagger-1 { animation-delay: 40ms; }
-.stagger-2 { animation-delay: 140ms; }
-.stagger-3 { animation-delay: 240ms; }
-.stagger-4 { animation-delay: 340ms; }
-.stagger-5 { animation-delay: 440ms; }
-.stagger-6 { animation-delay: 540ms; }
-.stagger-7 { animation-delay: 640ms; }
-.stagger-8 { animation-delay: 740ms; }
-.stagger-9 { animation-delay: 840ms; }
+html[data-ready] .stagger-in {
+  animation: stagger-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.stagger-1 { animation-delay: 20ms; }
+.stagger-2 { animation-delay: 75ms; }
+.stagger-3 { animation-delay: 130ms; }
+.stagger-4 { animation-delay: 185ms; }
+.stagger-5 { animation-delay: 240ms; }
+.stagger-6 { animation-delay: 295ms; }
+.stagger-7 { animation-delay: 350ms; }
+.stagger-8 { animation-delay: 405ms; }
+.stagger-9 { animation-delay: 460ms; }
 
 .reveal {
   opacity: 0;
@@ -168,7 +174,8 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .stagger-in {
+  .stagger-in,
+  html[data-ready] .stagger-in {
     animation: none;
     opacity: 1;
     filter: none;
