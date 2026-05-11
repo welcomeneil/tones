@@ -97,33 +97,30 @@ body {
 @keyframes stagger-in {
   from {
     opacity: 0;
-    filter: blur(6px);
-    transform: translateY(6px);
+    transform: translateY(-18px);
   }
   to {
     opacity: 1;
-    filter: blur(0);
     transform: translateY(0);
   }
 }
 
 .stagger-in {
   opacity: 0;
-  filter: blur(6px);
-  transform: translateY(6px);
+  transform: translateY(-18px);
 }
 
 html[data-ready] .stagger-in {
-  animation: stagger-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: stagger-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-.stagger-1 { animation-delay: 20ms; }
-.stagger-2 { animation-delay: 75ms; }
-.stagger-3 { animation-delay: 130ms; }
-.stagger-4 { animation-delay: 185ms; }
-.stagger-5 { animation-delay: 240ms; }
-.stagger-7 { animation-delay: 350ms; }
-.stagger-8 { animation-delay: 405ms; }
+.stagger-1 { animation-delay: 0ms; }
+.stagger-2 { animation-delay: 90ms; }
+.stagger-3 { animation-delay: 180ms; }
+.stagger-4 { animation-delay: 270ms; }
+.stagger-5 { animation-delay: 360ms; }
+.stagger-7 { animation-delay: 450ms; }
+.stagger-8 { animation-delay: 540ms; }
 
 .reveal {
   opacity: 0;
