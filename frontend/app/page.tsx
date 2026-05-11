@@ -243,40 +243,17 @@ export default function Home() {
 
             <div className="relative min-h-64">
               {analyzed && bitmap ? (
-                <div className="relative">
-                  <div
-                    className={`transition-[filter,opacity] duration-500 ease-in-out ${
-                      showDim ? "opacity-40 blur-[1.5px]" : "opacity-100 blur-0"
-                    }`}
-                  >
-                    <AnalyzedCanvas
-                      result={analyzed.result}
-                      zoneMap={analyzed.zoneMap}
-                      zoneIndexData={analyzed.zoneIndexData}
-                      referenceBitmap={bitmap}
-                      mode={viewMode}
-                      selectedZone={selectedZone}
-                      lockedZone={lockedZone}
-                      onHoveredZoneChange={setHoveredZone}
-                      onLockedZoneChange={setLockedZone}
-                    />
-                  </div>
-                  {showDim && (
-                    <span
-                      role="status"
-                      aria-live="polite"
-                      className="pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-baseline gap-1 font-serif text-2xl italic tracking-tight text-[var(--foreground)]"
-                      style={{ textShadow: "0 1px 12px var(--background)" }}
-                    >
-                      <span className="text-breath">analyzing</span>
-                      <span className="dot-cycle">
-                        <span>.</span>
-                        <span>.</span>
-                        <span>.</span>
-                      </span>
-                    </span>
-                  )}
-                </div>
+                <AnalyzedCanvas
+                  result={analyzed.result}
+                  zoneMap={analyzed.zoneMap}
+                  zoneIndexData={analyzed.zoneIndexData}
+                  referenceBitmap={bitmap}
+                  mode={viewMode}
+                  selectedZone={selectedZone}
+                  lockedZone={lockedZone}
+                  onHoveredZoneChange={setHoveredZone}
+                  onLockedZoneChange={setLockedZone}
+                />
               ) : (
                 <div className="flex h-64 w-full items-center justify-center text-sm text-[var(--muted)]">
                   <span className="text-breath">
@@ -291,24 +268,12 @@ export default function Home() {
               )}
             </div>
 
-            <AlgoToggle
-              value={algoMode}
-              onChange={setAlgoMode}
-              disabled={!blob || inFlight}
-            />
+            <AlgoToggle value={algoMode} onChange={setAlgoMode} disabled={!blob} />
 
             {algoMode === "targeted" ? (
-              <ValueCountPicker
-                value={n}
-                onChange={setN}
-                disabled={!blob || inFlight}
-              />
+              <ValueCountPicker value={n} onChange={setN} disabled={!blob} />
             ) : (
-              <SigmaSlider
-                value={sigma}
-                onChange={setSigma}
-                disabled={!blob || inFlight}
-              />
+              <SigmaSlider value={sigma} onChange={setSigma} disabled={!blob} />
             )}
           </>
         )}
@@ -379,6 +344,31 @@ export default function Home() {
           view source
         </a>
       </footer>
+
+      {showDim && (
+        <div
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+          className="processing-veil pointer-events-none fixed inset-0 z-50 flex items-center justify-center"
+        >
+          <div className="processing-rule absolute inset-x-0 top-0 h-px" aria-hidden="true" />
+          <div className="processing-rule absolute inset-x-0 bottom-0 h-px" aria-hidden="true" />
+          <div className="flex flex-col items-center gap-3">
+            <span className="font-serif text-5xl italic leading-none tracking-tight text-[var(--foreground)] sm:text-6xl">
+              <span className="text-breath">analyzing</span>
+              <span className="dot-cycle">
+                <span>.</span>
+                <span>.</span>
+                <span>.</span>
+              </span>
+            </span>
+            <span className="text-[10px] uppercase tracking-[0.32em] text-[var(--muted)]">
+              rendering palette
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
