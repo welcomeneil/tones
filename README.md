@@ -17,12 +17,8 @@ can usefully read. *tone zone* collapses an image to a small set of discrete
 grayscale "zones" — the same idea as Ansel Adams' Zone System or a painter's
 value-block-in pass — and lets you:
 
-- **Pick the value count yourself** (`targeted` mode) — k-means clustering on
-  the image's grayscale histogram finds the *N* most representative tones.
-- **Let the image pick its own** (`auto` mode) — Gaussian-smoothed histogram
-  peaks segment the image at its natural tonal valleys; a slider tunes how
-  much the histogram is smoothed (low σ → many fine zones, high σ → a few
-  broad ones).
+- **Pick the value count** — k-means clustering on the image's grayscale
+  histogram finds the *N* most representative tones.
 - **Hover or click any zone** to see its bounding-box brackets overlaid on
   the image and read its Munsell value (0 = black, 10 = white).
 - **Toggle** between the posterized zone map and the original reference
@@ -42,14 +38,13 @@ File ──► downscale to 1200px ──► OffscreenCanvas ──► ImageBitm
                                                 │         │          │
                                                 │         ▼          │
                                                 │   runKmeans1D  ◄──┐│
-                                                │     OR runPeaks ─┐│ │
-                                                │         │        │ │
-                                                │         ▼        │ │
-                                                │   digitize       │ │
-                                                │   paletteFromZones│ │
-                                                │   paintZoneMap   │ │
-                                                │   buildZoneIndex │ │
-                                                └─────────│────────┘ │
+                                                │         │         ││
+                                                │         ▼         ││
+                                                │   digitize        ││
+                                                │   paletteFromZones││
+                                                │   paintZoneMap    ││
+                                                │   buildZoneIndex  ││
+                                                └─────────│─────────┘│
                                                           ▼          │
                                                   postMessage with   │
                                                 ImageBitmap +        │
@@ -71,22 +66,16 @@ the photo is 400×400 or 1200×1200.
 
 ---
 
-## The algorithms
+## The algorithm
 
-### 1-D weighted k-means (`targeted` mode)
+### 1-D weighted k-means
 - k-means++ initialization weighted by histogram counts.
 - Lloyd iteration over the 256-bin value space, weights = counts.
 - Boundaries placed at midpoints between adjacent centers.
 - Mulberry32 RNG (deterministic, 32-bit state) — same algorithm as the
   Python pipeline's PCG64, but seeded outputs differ by ±1–2 grayscale levels.
 
-### Histogram peaks (`auto` mode)
-- `gaussian_filter1d` with scipy defaults (`mode='reflect'`, `truncate=4`),
-  rebuilt reflection arithmetic and all.
-- `find_peaks` on the negated smoothed histogram — local minima become zone
-  boundaries — including scipy's plateau-midpoint behavior.
-
-Source: `frontend/app/lib/algorithms/{kmeans1d,peaks,shared}.ts`.
+Source: `frontend/app/lib/algorithms/{kmeans1d,shared}.ts`.
 
 The reference Python (kept in `original_code.py` as a sketch, plus the
 fuller pipeline that lived under `api/` before the teardown) used PIL,
@@ -125,12 +114,10 @@ tone_zone/
 │   │   │   ├── DropZone.tsx
 │   │   │   ├── AnalyzedCanvas.tsx    # zone overlay + bracket rendering
 │   │   │   ├── PaletteStrip.tsx
-│   │   │   ├── AlgoToggle.tsx
 │   │   │   ├── ModeToggle.tsx
-│   │   │   ├── ValueCountPicker.tsx
-│   │   │   └── SigmaSlider.tsx
+│   │   │   └── ValueCountPicker.tsx
 │   │   └── lib/
-│   │       ├── algorithms/           # k-means, peaks, shared primitives
+│   │       ├── algorithms/           # k-means + shared primitives
 │   │       ├── worker/               # process.worker.ts + typed client
 │   │       ├── api.ts                # worker-backed analyzer
 │   │       ├── downscale.ts

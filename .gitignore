@@ -1,27 +1,3 @@
-# Virtual environments
-.venv/
-venv/
-ENV/
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-*.egg-info/
-.eggs/
-dist/
-build/
-*.egg
-
-# Testing / type check caches
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.coverage
-htmlcov/
-
 # Environment and secrets
 .env
 .env.*
@@ -42,9 +18,6 @@ original_code.py
 
 # asset images
 /assets/
-
-# fly.io
-.fly/
 
 # Claude Code local state
 .claude/

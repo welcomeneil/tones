@@ -122,10 +122,8 @@ html[data-ready] .stagger-in {
 .stagger-3 { animation-delay: 130ms; }
 .stagger-4 { animation-delay: 185ms; }
 .stagger-5 { animation-delay: 240ms; }
-.stagger-6 { animation-delay: 295ms; }
 .stagger-7 { animation-delay: 350ms; }
 .stagger-8 { animation-delay: 405ms; }
-.stagger-9 { animation-delay: 460ms; }
 
 .reveal {
   opacity: 0;

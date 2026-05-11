@@ -68,6 +68,11 @@ export function digitize(gray: Uint8Array, boundaries: Int32Array): Uint8Array {
   return out;
 }
 
+// Builds the palette AND compacts the zones array in lockstep: any zone that
+// ended up with zero pixels is dropped, and remaining zone indices shift down
+// to stay contiguous. Without the remap, palette[zones[i]] would mis-index (or
+// go undefined) once an empty zone existed — which kmeans can produce when two
+// centers converge or when n exceeds the image's distinct-value count.
 export function paletteFromZones(
   gray: Uint8Array,
   zones: Uint8Array,
@@ -81,9 +86,19 @@ export function paletteFromZones(
     counts[z]++;
   }
   const palette: number[] = [];
+  const remap = new Uint8Array(zoneCount);
+  let next = 0;
+  let needsRemap = false;
   for (let z = 0; z < zoneCount; z++) {
-    if (counts[z] === 0) continue;
+    if (counts[z] === 0) {
+      needsRemap = true;
+      continue;
+    }
+    remap[z] = next++;
     palette.push(Math.round(sums[z] / counts[z]));
+  }
+  if (needsRemap) {
+    for (let i = 0; i < zones.length; i++) zones[i] = remap[zones[i]];
   }
   return palette;
 }

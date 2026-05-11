@@ -1,6 +1,6 @@
 // Web Worker that owns image processing for the tonal-zone pipeline.
 // Holds the grayscale buffer + 256-bin histogram for the current image
-// so re-analyze under new params (`n` / `sigma` / `algo`) is sub-millisecond.
+// so re-analyze under new params (`n`) is sub-millisecond.
 
 import {
   bitmapToGrayscale,
@@ -13,17 +13,12 @@ import {
   requireTonalVariation,
 } from "../algorithms/shared";
 import { runKmeans1D } from "../algorithms/kmeans1d";
-import { runPeaks } from "../algorithms/peaks";
-
-type Algorithm = "peaks" | "kmeans";
 
 export type LoadMsg = { type: "load"; id: number; blob: Blob };
 export type AnalyzeMsg = {
   type: "analyze";
   id: number;
-  algo: Algorithm;
   n: number;
-  sigma: number;
 };
 export type ResetMsg = { type: "reset" };
 export type InMsg = LoadMsg | AnalyzeMsg | ResetMsg;
@@ -39,7 +34,6 @@ export type AnalyzeOk = {
   id: number;
   width: number;
   height: number;
-  algo: Algorithm;
   n: number;
   palette: number[];
   zoneMap: ImageBitmap;
@@ -96,10 +90,7 @@ ctx.onmessage = async (e: MessageEvent<InMsg>) => {
       }
       requireTonalVariation(cached.histogram);
 
-      const { boundaries, zoneCount } =
-        msg.algo === "kmeans"
-          ? runKmeans1D(cached.histogram, msg.n)
-          : runPeaks(cached.histogram, msg.sigma);
+      const { boundaries, zoneCount } = runKmeans1D(cached.histogram, msg.n);
 
       const zones = digitize(cached.gray, boundaries);
       const palette = paletteFromZones(cached.gray, zones, zoneCount);
@@ -118,7 +109,6 @@ ctx.onmessage = async (e: MessageEvent<InMsg>) => {
           id: msg.id,
           width: cached.width,
           height: cached.height,
-          algo: msg.algo,
           n: effectiveZoneCount,
           palette,
           zoneMap,

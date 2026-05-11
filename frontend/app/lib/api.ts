@@ -20,7 +20,6 @@ export function toAnalyzedAssets(msg: AnalyzeOk): AnalyzedAssets {
     result: {
       width: msg.width,
       height: msg.height,
-      algo: msg.algo,
       n: msg.n,
       palette: msg.palette,
     },

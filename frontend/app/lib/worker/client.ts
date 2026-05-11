@@ -64,12 +64,9 @@ export class ProcessWorkerClient {
     return this.send(msg, id, signal) as Promise<LoadOk>;
   }
 
-  analyze(
-    params: { algo: "peaks" | "kmeans"; n: number; sigma: number },
-    signal: AbortSignal,
-  ): Promise<AnalyzeOk> {
+  analyze(n: number, signal: AbortSignal): Promise<AnalyzeOk> {
     const id = this.nextId++;
-    const msg: AnalyzeMsg = { type: "analyze", id, ...params };
+    const msg: AnalyzeMsg = { type: "analyze", id, n };
     return this.send(msg, id, signal) as Promise<AnalyzeOk>;
   }
 

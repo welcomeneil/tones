@@ -15,7 +15,6 @@ import { downscaleImage } from "./lib/downscale";
 import type { RenderMode } from "./lib/types";
 
 const ANALYZE_DEBOUNCE_MS = 400;
-const DEFAULT_SIGMA = 2.0;
 const DEFAULT_N = 5;
 
 export default function Home() {
@@ -97,7 +96,7 @@ export default function Home() {
       setInFlight(true);
       setError(null);
       getWorker()
-        .analyze({ algo: "kmeans", n, sigma: DEFAULT_SIGMA }, ctrl.signal)
+        .analyze(n, ctrl.signal)
         .then((msg) => {
           if (ctrl.signal.aborted) {
             msg.zoneMap.close();
