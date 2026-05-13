@@ -142,13 +142,13 @@ export function PaletteStrip({
         const labelStyle = { color: labelLight ? "#1a1a1a" : "#f5f0e8" };
         return (
           <button
-            key={idx}
+            key={`${n}-${idx}`}
             type="button"
             data-zone-idx={idx}
             onMouseEnter={() => onHoveredZoneChange(idx)}
             onMouseLeave={() => onHoveredZoneChange(null)}
             onClick={() => handleClick(idx)}
-            className={`group relative flex h-12 min-w-0 flex-1 items-end justify-center pb-1 transition-opacity duration-500 ease-in-out ${
+            className={`palette-pop group relative flex h-12 min-w-0 flex-1 items-end justify-center pb-1 transition-opacity duration-500 ease-in-out ${
               dimmed ? "opacity-50" : "opacity-100"
             }`}
             style={{

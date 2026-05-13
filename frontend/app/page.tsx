@@ -159,6 +159,10 @@ export default function Home() {
   const munsellValue =
     selectedLum !== null ? (selectedLum / 25.5).toFixed(1) : null;
   const paletteSize = result?.palette.length ?? 0;
+  // Dim the canvas + palette while a new palette is pending: the moment the
+  // user changes n (palette length mismatch), through the debounce, until the
+  // new analysis lands. Gives a "processing" cue without a spinner.
+  const reanalyzing = result !== null && (inFlight || result.palette.length !== n);
 
   const onReplace = () => {
     abortRef.current?.abort();
@@ -243,32 +247,38 @@ export default function Home() {
             </div>
 
             <div className="stagger-in stagger-4 relative min-h-64">
-              {analyzed && bitmap ? (
-                <AnalyzedCanvas
-                  result={analyzed.result}
-                  zoneMap={analyzed.zoneMap}
-                  zoneIndexData={analyzed.zoneIndexData}
-                  referenceBitmap={bitmap}
-                  mode={viewMode}
-                  selectedZone={selectedZone}
-                  lockedZone={lockedZone}
-                  regionActive={regionZones !== null}
-                  onHoveredZoneChange={setHoveredZone}
-                  onLockedZoneChange={setLockedZone}
-                  onRegionSelect={setRegionZones}
-                />
-              ) : (
-                <div className="flex h-64 w-full items-center justify-center text-sm text-[var(--muted)]">
-                  <span className="text-breath">
-                    {inFlight ? "analyzing" : "preparing"}
-                  </span>
-                  <span className="dot-cycle ml-0.5">
-                    <span>.</span>
-                    <span>.</span>
-                    <span>.</span>
-                  </span>
-                </div>
-              )}
+              <div
+                className={`transition-opacity duration-300 ease-out ${
+                  reanalyzing ? "opacity-40" : "opacity-100"
+                }`}
+              >
+                {analyzed && bitmap ? (
+                  <AnalyzedCanvas
+                    result={analyzed.result}
+                    zoneMap={analyzed.zoneMap}
+                    zoneIndexData={analyzed.zoneIndexData}
+                    referenceBitmap={bitmap}
+                    mode={viewMode}
+                    selectedZone={selectedZone}
+                    lockedZone={lockedZone}
+                    regionActive={regionZones !== null}
+                    onHoveredZoneChange={setHoveredZone}
+                    onLockedZoneChange={setLockedZone}
+                    onRegionSelect={setRegionZones}
+                  />
+                ) : (
+                  <div className="flex h-64 w-full items-center justify-center text-sm text-[var(--muted)]">
+                    <span className="text-breath">
+                      {inFlight ? "analyzing" : "preparing"}
+                    </span>
+                    <span className="dot-cycle ml-0.5">
+                      <span>.</span>
+                      <span>.</span>
+                      <span>.</span>
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="stagger-in stagger-5">
@@ -329,14 +339,20 @@ export default function Home() {
               </p>
             </div>
           </div>
-          <PaletteStrip
-            palette={result.palette}
-            selectedZone={selectedZone}
-            lockedZone={lockedZone}
-            visibleZones={regionZones}
-            onHoveredZoneChange={setHoveredZone}
-            onLockedZoneChange={setLockedZone}
-          />
+          <div
+            className={`transition-opacity duration-300 ease-out ${
+              reanalyzing ? "opacity-40" : "opacity-100"
+            }`}
+          >
+            <PaletteStrip
+              palette={result.palette}
+              selectedZone={selectedZone}
+              lockedZone={lockedZone}
+              visibleZones={regionZones}
+              onHoveredZoneChange={setHoveredZone}
+              onLockedZoneChange={setLockedZone}
+            />
+          </div>
         </div>
       )}
 

@@ -18,6 +18,7 @@ export function DropZone({ onFile }: Props) {
   return (
     <button
       type="button"
+      data-over={isOver}
       onClick={() => inputRef.current?.click()}
       onDragOver={(e) => {
         e.preventDefault();
@@ -29,13 +30,9 @@ export function DropZone({ onFile }: Props) {
         setIsOver(false);
         handleFiles(e.dataTransfer.files);
       }}
-      className={`flex h-64 w-full flex-col items-center justify-center gap-3 border border-dashed transition-colors ${
-        isOver
-          ? "border-[var(--foreground)] bg-[var(--border)]/40"
-          : "border-[var(--border)] hover:border-[var(--muted)]"
-      }`}
+      className="dropzone flex h-64 w-full flex-col items-center justify-center gap-3"
     >
-      <p className="font-serif text-xl text-[var(--foreground)]">
+      <p className="dropzone-label font-serif text-xl text-[var(--foreground)]">
         drop an image, or click to choose
       </p>
       <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
