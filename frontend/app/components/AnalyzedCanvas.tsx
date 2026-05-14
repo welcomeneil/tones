@@ -34,11 +34,14 @@ const MERGE_GAP_FRACTION = 0; // bboxes within this fraction of max(W,H) merge (
 // because touch-action is pan-y until the long-press fires.
 const LOUPE_DIAMETER = 132;
 const LOUPE_ZOOM = 2.5;
-// Loupe sits up-and-slightly-left of the finger so the thumb doesn't occlude
-// it. The crosshair targets whatever is under the loupe glass itself, not
-// under the finger — the user aims by aligning the loupe over the target.
-const LOUPE_OFFSET_X = -40;
-const LOUPE_OFFSET_Y = -92;
+// Loupe sits fully up-and-left of the finger so the thumb (coming in from
+// below-right on most grips) doesn't occlude it. With LOUPE_DIAMETER 132 →
+// radius 66, offsets of (-80, -100) put the loupe's bottom-right corner at
+// (fx-14, fy-34) — clear of a typical thumb pad. The crosshair targets
+// whatever is under the loupe glass itself, not under the finger — the user
+// aims by aligning the loupe over the target.
+const LOUPE_OFFSET_X = -80;
+const LOUPE_OFFSET_Y = -100;
 const LONG_PRESS_MS = 320;
 const MOVE_CANCEL_PX = 10;
 
@@ -488,12 +491,16 @@ export function AnalyzedCanvas({
 
     const enterLoupe = (fx: number, fy: number) => {
       inLoupe = true;
-      setLoupeActive(true);
+      // Position + paint the loupe BEFORE flipping opacity to 100, otherwise
+      // the React rerender can show the canvas at its previous (or default
+      // 0,0) left/top for one frame before drawLoupe runs in the next rAF.
+      // On iPhone this read as a stray dot flashing at the screen corner.
       const [lx, ly] = loupeCenter(fx, fy);
       const z = zoneAtClient(lx, ly);
       pickedZone = z;
       onHoveredZoneChange(z);
-      requestAnimationFrame(() => drawLoupe(fx, fy));
+      drawLoupe(fx, fy);
+      setLoupeActive(true);
     };
 
     const cancelPress = () => {

@@ -219,3 +219,23 @@ For a value-study reference tool aimed at human artists this is invisible. If we
 - **Determinism in numerical ports**: when does "same algorithm" suffice and when do you need bit-exact parity? Why do RNG choice, FP rounding modes, and library defaults all conspire to make exact parity expensive?
 - **Histogram-shaped algorithms**: any operation that's a function of the value distribution, not the spatial layout, can be made image-size-independent. Recognize this shape (color quantization, levels adjustments, posterization, exposure histogram analysis) and the pipeline becomes "decode once → histogram once → re-run cheap math indefinitely."
 - **The economics of removing a service**: a backend isn't free even when idle (cold-start risk, observability surface, deployment pipeline, dependency upgrades). Sometimes the highest-leverage performance work is *deleting* the service that was sitting in the critical path.
+
+## 14. session-history cache (in-memory)
+
+Added a per-session history of processed images so "replace" no longer throws away the prior posterization. Cap 8, newest-first, oldest evicted; resources (`ImageBitmap`, zone-map `ImageBitmap`) closed on eviction / removal / unmount.
+
+**Design choice: in-memory, not IndexedDB.**
+- Pro: zero serialization, no quota handling, no privacy surface on disk, no algorithm-version staleness (every cache entry was produced by the currently-loaded pipeline).
+- Con: an accidental Cmd-R wipes everything. The only failure mode persistence would fix — keep in mind if users actually report it.
+
+**Architectural shift: history is the source of truth, not a side cache.**
+The page used to hold `file / blob / bitmap / analyzed / n` as top-level state. They're now fields of a `HistoryEntry`, and the currently displayed image is just `history.find(id === currentId)`. This avoided a thorny lifecycle problem: if the cache and the "live" state both reference the same `ImageBitmap`, the existing `setBitmap(prev => { prev?.close(); ... })` pattern would close a bitmap that history still owns. Single ownership in history sidesteps it — closures only happen on eviction.
+
+**Worker lifecycle.**
+The web worker holds at most one image's grayscale + histogram. Track `workerLoadedIdRef` so switching to a cached entry whose `analyzed` already matches its desired `n` shows the cached result instantly *without* reloading the worker. The worker only re-loads when the user actually changes `n` on a switched-to entry.
+
+**Concepts to revisit.**
+- **Source-of-truth vs derived state**: when a "cache" and a "current view" reference the same object, ownership ambiguity creates lifecycle bugs. Either copy or pick one owner.
+- **Resource closures for `ImageBitmap` / GPU-backed handles**: `.close()` is mandatory for GC of GPU memory; forgetting it leaks until tab close. Each setter that replaces a bitmap must close the prev unless someone else owns it.
+- **LRU vs chronological eviction**: chose chronological (newest-first, evict tail) for simplicity. A user pinging back-and-forth between two old entries while uploading new ones will eventually lose them. LRU would fix that at the cost of order-reshuffling UX.
+- **The `crypto.randomUUID()` fallback**: still need a fallback for older Safari / non-secure contexts. The `Date.now() + Math.random()` shim is fine for client-only id-of-a-session-thing but would be wrong for anything cross-machine.

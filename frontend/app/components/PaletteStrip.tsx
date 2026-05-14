@@ -7,7 +7,7 @@ type Props = {
   selectedZone: number | null;
   lockedZone: number | null;
   // When set, only these zone indices are shown — used by the region filter.
-  // Labels still read "V3/5" so the underlying global value stays legible.
+  // Labels still read "V3/5" so the underlying global zone index stays legible.
   visibleZones?: readonly number[] | null;
   onHoveredZoneChange: (zone: number | null) => void;
   onLockedZoneChange: (zone: number | null) => void;
