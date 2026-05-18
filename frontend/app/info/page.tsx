@@ -22,7 +22,7 @@ const FAQS: Faq[] = [
   },
   {
     q: "What is notan?",
-    a: "Notan is a Japanese design idea — the harmony of light and dark masses. Reduced to two values, an image becomes pure shape: only the major light and shadow patterns remain. It is the most unforgiving way to test a composition; if it reads at two values, it will read at any number. Toggle notan above the values picker to see it.",
+    a: "Notan is a Japanese design idea — the harmony of light and dark masses. Reduced to two values, an image becomes pure shape: only the major light and shadow patterns remain. If the composition reads at two values, it will read at any number. Toggle notan above the values picker to see it.",
   },
   {
     q: "What do the labels on the palette mean?",
