@@ -30,7 +30,10 @@ type HistoryEntry = {
   bitmap: ImageBitmap | null;
   analyzed: AnalyzedAssets | null;
   n: number;
+  notan: boolean;
 };
+
+const NOTAN_N = 2;
 
 export default function Home() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -107,11 +110,12 @@ export default function Home() {
   // worker for this entry if it hasn't been, and runs analyze.
   useEffect(() => {
     if (!current || !current.blob) return;
-    if (current.analyzed && current.analyzed.result.n === current.n) return;
+    const effectiveN = current.notan ? NOTAN_N : current.n;
+    if (current.analyzed && current.analyzed.result.n === effectiveN) return;
 
     const id = current.id;
     const blob = current.blob;
-    const n = current.n;
+    const n = effectiveN;
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
@@ -202,8 +206,9 @@ export default function Home() {
   // Dim the canvas + palette while a new palette is pending: the moment the
   // user changes n (palette length mismatch), through the debounce, until the
   // new analysis lands. Gives a "processing" cue without a spinner.
+  const desiredN = current ? (current.notan ? NOTAN_N : current.n) : 0;
   const reanalyzing =
-    result !== null && (inFlight || result.palette.length !== (current?.n ?? 0));
+    result !== null && (inFlight || result.palette.length !== desiredN);
 
   const onUploadFile = (file: File) => {
     setError(null);
@@ -218,6 +223,7 @@ export default function Home() {
       bitmap: null,
       analyzed: null,
       n: DEFAULT_N,
+      notan: false,
     };
     setHistory((h) => {
       const next = [entry, ...h];
@@ -285,6 +291,11 @@ export default function Home() {
   const onChangeN = (newN: number) => {
     if (!current) return;
     patchEntry(current.id, { n: newN });
+  };
+
+  const onToggleNotan = () => {
+    if (!current) return;
+    patchEntry(current.id, { notan: !current.notan });
   };
 
   const thumbEntries = useMemo(
@@ -403,6 +414,8 @@ export default function Home() {
                 value={current.n}
                 onChange={onChangeN}
                 disabled={!current.blob}
+                notan={current.notan}
+                onToggleNotan={onToggleNotan}
               />
             </div>
 

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AnalyzeResult, RenderMode } from "../lib/types";
+import { TouchLoupe } from "./TouchLoupe";
 
 type Props = {
   result: AnalyzeResult;
@@ -29,21 +30,9 @@ const BRACKET_ARM_DPX = 14;
 const MIN_AREA_FRACTION = 0.0001; // skip components < 0.01% of image area
 const MERGE_GAP_FRACTION = 0; // bboxes within this fraction of max(W,H) merge (0 = only true overlap)
 
-// Touch loupe: long-press engages a magnifier so users can target zones
-// that read too close together for a fingertip. Quick drags still scroll
-// because touch-action is pan-y until the long-press fires.
-const LOUPE_DIAMETER = 132;
-const LOUPE_ZOOM = 2.5;
-// Loupe sits fully up-and-left of the finger so the thumb (coming in from
-// below-right on most grips) doesn't occlude it. With LOUPE_DIAMETER 132 →
-// radius 66, offsets of (-80, -100) put the loupe's bottom-right corner at
-// (fx-14, fy-34) — clear of a typical thumb pad. The crosshair targets
-// whatever is under the loupe glass itself, not under the finger — the user
-// aims by aligning the loupe over the target.
-const LOUPE_OFFSET_X = -80;
-const LOUPE_OFFSET_Y = -100;
-const LONG_PRESS_MS = 320;
-const MOVE_CANCEL_PX = 10;
+// Touch loupe (long-press magnifier) lives in TouchLoupe.tsx — it owns its
+// own listeners, gesture state, and DPR-aware draw. This file only handles
+// pan/zoom and desktop region-select.
 
 // Pan/zoom: ctrl/⌘+wheel on desktop (also covers Mac trackpad pinch, which
 // the OS surfaces as ctrlKey wheel events), 2-finger pinch on mobile. Plain
@@ -87,12 +76,13 @@ export function AnalyzedCanvas({
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
-  const loupeRef = useRef<HTMLCanvasElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const wasTouchRef = useRef(false);
-  const [loupeActive, setLoupeActive] = useState(false);
   const [zoom, setZoom] = useState({ s: 1, tx: 0, ty: 0 });
   const [zoomTransition, setZoomTransition] = useState(false);
+  // While a pinch is active we stand the loupe down to avoid the two
+  // gestures fighting over the same touchmove stream.
+  const [pinchActive, setPinchActive] = useState(false);
   // Live box-select state: dragRect is wrapper-local CSS px (for the visible
   // rectangle); dragRef holds the in-progress gesture, suppressClickRef eats
   // the synthetic click that trails a completed drag.
@@ -387,16 +377,16 @@ export function AnalyzedCanvas({
     };
   }, [result, zoneIndexData, lockedZone, clampZoom, onRegionSelect, onLockedZoneChange]);
 
+  // Touch handling here is pinch-zoom only. The hold-to-magnify loupe lives
+  // entirely inside <TouchLoupe/>, which binds its own listeners to the same
+  // canvas and discriminates by touches.length. The two coexist without
+  // explicit coordination: a second finger landing makes the loupe stand
+  // down (it sees touches.length >= 2 and resets) and pinch takes over.
   useEffect(() => {
     const canvas = canvasRef.current;
     const wrapper = wrapperRef.current;
     if (!canvas || !wrapper) return;
 
-    let pressTimer: number | null = null;
-    let startX = 0;
-    let startY = 0;
-    let inLoupe = false;
-    let pickedZone: number | null = null;
     // Pinch baseline: capturing s/tx/ty at gesture start lets us derive each
     // frame's transform from the *original* finger positions, avoiding drift
     // that accumulates when each delta is applied to the previous frame.
@@ -411,120 +401,9 @@ export function AnalyzedCanvas({
         }
       | null = null;
 
-    const zoneAtClient = (cx: number, cy: number): number | null => {
-      const rect = canvas.getBoundingClientRect();
-      const x = Math.floor(((cx - rect.left) / rect.width) * zoneIndexData.width);
-      const y = Math.floor(((cy - rect.top) / rect.height) * zoneIndexData.height);
-      if (x < 0 || y < 0 || x >= zoneIndexData.width || y >= zoneIndexData.height) {
-        return null;
-      }
-      const i = (y * zoneIndexData.width + x) * 4;
-      return zoneIndexData.data[i];
-    };
-
-    const loupeCenter = (fx: number, fy: number): [number, number] => {
-      return [fx + LOUPE_OFFSET_X, fy + LOUPE_OFFSET_Y];
-    };
-
-    const drawLoupe = (fx: number, fy: number) => {
-      const loupe = loupeRef.current;
-      if (!loupe) return;
-      const ctx = loupe.getContext("2d");
-      if (!ctx) return;
-
-      const dpr = window.devicePixelRatio || 1;
-      const px = LOUPE_DIAMETER * dpr;
-      if (loupe.width !== px) loupe.width = px;
-      if (loupe.height !== px) loupe.height = px;
-
-      const [lx, ly] = loupeCenter(fx, fy);
-      const rect = canvas.getBoundingClientRect();
-      const sx = ((lx - rect.left) / rect.width) * canvas.width;
-      const sy = ((ly - rect.top) / rect.height) * canvas.height;
-      const srcSize = LOUPE_DIAMETER / LOUPE_ZOOM;
-
-      ctx.save();
-      ctx.clearRect(0, 0, px, px);
-      ctx.beginPath();
-      ctx.arc(px / 2, px / 2, px / 2, 0, Math.PI * 2);
-      ctx.clip();
-      // Nearest-neighbor preserves the posterized zone boundaries; smoothing
-      // would blur the very edges the user is trying to target.
-      ctx.imageSmoothingEnabled = false;
-      // Backdrop matches the page bg so areas outside the image just look
-      // like the page continues — keeps the dropoff legible instead of
-      // reading as a black mask under the loupe.
-      ctx.fillStyle = "#f5f0e8";
-      ctx.fillRect(0, 0, px, px);
-      ctx.drawImage(
-        canvas,
-        sx - srcSize / 2,
-        sy - srcSize / 2,
-        srcSize,
-        srcSize,
-        0,
-        0,
-        px,
-        px,
-      );
-      ctx.restore();
-
-      ctx.strokeStyle = HALO_COLOR;
-      ctx.lineWidth = 3 * dpr;
-      ctx.beginPath();
-      ctx.arc(px / 2, px / 2, px / 2 - 1.5 * dpr, 0, Math.PI * 2);
-      ctx.stroke();
-
-      ctx.strokeStyle = CORE_COLOR;
-      ctx.lineWidth = 1.5 * dpr;
-      const ch = 7 * dpr;
-      ctx.beginPath();
-      ctx.moveTo(px / 2 - ch, px / 2);
-      ctx.lineTo(px / 2 + ch, px / 2);
-      ctx.moveTo(px / 2, px / 2 - ch);
-      ctx.lineTo(px / 2, px / 2 + ch);
-      ctx.stroke();
-
-      loupe.style.left = `${lx - LOUPE_DIAMETER / 2}px`;
-      loupe.style.top = `${ly - LOUPE_DIAMETER / 2}px`;
-    };
-
-    const enterLoupe = (fx: number, fy: number) => {
-      inLoupe = true;
-      // Position + paint the loupe BEFORE flipping opacity to 100, otherwise
-      // the React rerender can show the canvas at its previous (or default
-      // 0,0) left/top for one frame before drawLoupe runs in the next rAF.
-      // On iPhone this read as a stray dot flashing at the screen corner.
-      const [lx, ly] = loupeCenter(fx, fy);
-      const z = zoneAtClient(lx, ly);
-      pickedZone = z;
-      onHoveredZoneChange(z);
-      drawLoupe(fx, fy);
-      setLoupeActive(true);
-    };
-
-    const cancelPress = () => {
-      if (pressTimer !== null) {
-        window.clearTimeout(pressTimer);
-        pressTimer = null;
-      }
-    };
-    const exitLoupe = () => {
-      if (!inLoupe) return;
-      inLoupe = false;
-      setLoupeActive(false);
-      onHoveredZoneChange(null);
-      pickedZone = null;
-    };
-
     const onTouchStart = (e: TouchEvent) => {
       wasTouchRef.current = true;
-      // Second finger lands → switch from any single-touch state into pinch.
-      // We deliberately don't lock the zone the loupe was over: a deliberate
-      // pinch shouldn't leave a stray selection from the moment-before state.
       if (e.touches.length === 2) {
-        cancelPress();
-        exitLoupe();
         setZoomTransition(false);
         const t1 = e.touches[0];
         const t2 = e.touches[1];
@@ -537,81 +416,43 @@ export function AnalyzedCanvas({
           baseTx: z.tx,
           baseTy: z.ty,
         };
-        return;
+        setPinchActive(true);
       }
-      if (e.touches.length !== 1) return;
-      const t = e.touches[0];
-      startX = t.clientX;
-      startY = t.clientY;
-      pressTimer = window.setTimeout(() => {
-        pressTimer = null;
-        enterLoupe(startX, startY);
-      }, LONG_PRESS_MS);
     };
 
     const onTouchMove = (e: TouchEvent) => {
-      if (pinch && e.touches.length >= 2) {
-        e.preventDefault();
-        const t1 = e.touches[0];
-        const t2 = e.touches[1];
-        const cx = (t1.clientX + t2.clientX) / 2;
-        const cy = (t1.clientY + t2.clientY) / 2;
-        const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
-        if (pinch.dist === 0) return;
-        const k = dist / pinch.dist;
-        const newS = pinch.baseS * k;
-        const rect = wrapper.getBoundingClientRect();
-        // Anchor the original midpoint to wherever the current midpoint is —
-        // this fuses zoom-around-anchor and 2-finger pan in a single update.
-        const tx = cx - rect.left - (pinch.cx - rect.left - pinch.baseTx) * k;
-        const ty = cy - rect.top - (pinch.cy - rect.top - pinch.baseTy) * k;
-        // Mirror the wheel handler: allow whatever zoom was in effect at gesture
-        // start (so pinching after a region zoom doesn't snap back to ZOOM_MAX).
-        setZoom(clampZoom(newS, tx, ty, Math.max(ZOOM_MAX, pinch.baseS)));
-        return;
-      }
-      const t = e.touches[0];
-      if (!t) return;
-      if (pressTimer !== null) {
-        if (Math.hypot(t.clientX - startX, t.clientY - startY) > MOVE_CANCEL_PX) {
-          cancelPress();
-        }
-      }
-      if (inLoupe) {
-        // Need passive: false so this preventDefault actually suppresses scroll.
-        e.preventDefault();
-        const [lx, ly] = loupeCenter(t.clientX, t.clientY);
-        const z = zoneAtClient(lx, ly);
-        if (z !== pickedZone) {
-          pickedZone = z;
-          onHoveredZoneChange(z);
-        }
-        drawLoupe(t.clientX, t.clientY);
-      }
+      if (!pinch || e.touches.length < 2) return;
+      e.preventDefault();
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const cx = (t1.clientX + t2.clientX) / 2;
+      const cy = (t1.clientY + t2.clientY) / 2;
+      const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      if (pinch.dist === 0) return;
+      const k = dist / pinch.dist;
+      const newS = pinch.baseS * k;
+      const rect = wrapper.getBoundingClientRect();
+      // Anchor the original midpoint to wherever the current midpoint is —
+      // this fuses zoom-around-anchor and 2-finger pan in a single update.
+      const tx = cx - rect.left - (pinch.cx - rect.left - pinch.baseTx) * k;
+      const ty = cy - rect.top - (pinch.cy - rect.top - pinch.baseTy) * k;
+      // Mirror the wheel handler: allow whatever zoom was in effect at gesture
+      // start (so pinching after a region zoom doesn't snap back to ZOOM_MAX).
+      setZoom(clampZoom(newS, tx, ty, Math.max(ZOOM_MAX, pinch.baseS)));
     };
 
     const onTouchEnd = (e: TouchEvent) => {
-      // Tail of a pinch: keep wasTouchRef set briefly so the synthetic click
-      // that fires after the last finger lifts can't re-trigger the
-      // desktop lock-toggle path.
-      if (pinch) {
-        if (e.touches.length < 2) pinch = null;
-        if (e.touches.length === 0) {
-          window.setTimeout(() => {
-            wasTouchRef.current = false;
-          }, 400);
-        }
-        return;
+      if (pinch && e.touches.length < 2) {
+        pinch = null;
+        setPinchActive(false);
       }
-      cancelPress();
-      if (inLoupe) {
-        const captured = pickedZone;
-        exitLoupe();
-        if (captured !== null) onLockedZoneChange(captured);
+      if (e.touches.length === 0) {
+        // Suppress the synthetic click that trails the last lift so it
+        // can't re-trigger the desktop lock-toggle on touch devices.
+        window.setTimeout(() => {
+          wasTouchRef.current = false;
+        }, 400);
       }
-      window.setTimeout(() => {
-        wasTouchRef.current = false;
-      }, 400);
     };
 
     canvas.addEventListener("touchstart", onTouchStart, { passive: true });
@@ -620,13 +461,12 @@ export function AnalyzedCanvas({
     canvas.addEventListener("touchcancel", onTouchEnd);
 
     return () => {
-      if (pressTimer !== null) window.clearTimeout(pressTimer);
       canvas.removeEventListener("touchstart", onTouchStart);
       canvas.removeEventListener("touchmove", onTouchMove);
       canvas.removeEventListener("touchend", onTouchEnd);
       canvas.removeEventListener("touchcancel", onTouchEnd);
     };
-  }, [zoneIndexData, onHoveredZoneChange, onLockedZoneChange, clampZoom]);
+  }, [clampZoom]);
 
   const ariaLabel =
     mode === "zones"
@@ -715,13 +555,12 @@ export function AnalyzedCanvas({
           reset zoom
         </button>
       )}
-      <canvas
-        ref={loupeRef}
-        aria-hidden="true"
-        style={{ width: LOUPE_DIAMETER, height: LOUPE_DIAMETER }}
-        className={`pointer-events-none fixed z-50 rounded-full shadow-lg transition-opacity duration-150 ${
-          loupeActive ? "opacity-100" : "opacity-0"
-        }`}
+      <TouchLoupe
+        sourceCanvasRef={canvasRef}
+        zoneIndexData={zoneIndexData}
+        onHoveredZoneChange={onHoveredZoneChange}
+        onLockedZoneChange={onLockedZoneChange}
+        disabled={pinchActive}
       />
     </div>
   );

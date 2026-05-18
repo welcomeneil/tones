@@ -21,8 +21,8 @@ const FAQS: Faq[] = [
     a: "Two or three zones force the strongest read and are useful for thumbnails. Five to seven are closer to a finished study. Start low, then add — it is easier to see structure with fewer zones.",
   },
   {
-    q: "What does the number under the palette mean?",
-    a: "It is the Munsell value, a 0–10 scale where 0 is black and 10 is white. Useful when matching paint or pencil values to what you see.",
+    q: "What do the labels on the palette mean?",
+    a: "Each swatch is labelled V{n}/{total} — the zone index out of the total number of zones. V1 is the darkest, the last is the lightest. Hover a swatch for its raw 0–255 luminosity.",
   },
   {
     q: "Are my images uploaded anywhere?",
