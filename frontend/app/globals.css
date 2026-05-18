@@ -208,10 +208,23 @@ html[data-ready] .stagger-in {
     opacity 0.45s ease;
 }
 
-.dropzone:hover::before {
+/* Desktop reveal — gated to hover-capable devices so iOS sticky-hover after a
+   tap doesn't strand the staircase open with no way to retract. */
+@media (hover: hover) {
+  .dropzone:hover::before {
+    opacity: 0.55;
+    clip-path: inset(0 0 0 0);
+  }
+  .dropzone:hover .dropzone-label { transform: scale(1.02); }
+}
+/* Mobile reveal — DropZone sets data-tapped on touch and clears it on outside
+   pointerdown, so the same transition plays in reverse on tap-out. */
+.dropzone[data-tapped="true"]::before {
   opacity: 0.55;
   clip-path: inset(0 0 0 0);
 }
+.dropzone[data-tapped="true"] .dropzone-label { transform: scale(1.02); }
+
 .dropzone[data-over="true"]::before {
   opacity: 0.9;
   clip-path: inset(0 0 0 0);
@@ -221,7 +234,6 @@ html[data-ready] .stagger-in {
 .dropzone-label {
   transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
 }
-.dropzone:hover .dropzone-label { transform: scale(1.02); }
 .dropzone[data-over="true"] .dropzone-label { transform: scale(1.05); }
 
 @media (prefers-reduced-motion: reduce) {
