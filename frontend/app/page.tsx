@@ -308,8 +308,17 @@ export default function Home() {
     [history],
   );
 
+  // Landing state (no image yet) clamps to the viewport so there's no scroll
+  // on mobile — small phones can't afford the desktop py-16/gap-12 spacing
+  // and still fit the dropzone + history strip + footer in one viewport. The
+  // analyzed state keeps its scrolling layout because the palette + canvas +
+  // history strip legitimately exceed a phone viewport.
+  const rootClass = current
+    ? "mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-12 px-6 py-16 sm:px-10 sm:py-24"
+    : "mx-auto flex h-[100dvh] w-full max-w-4xl flex-col gap-6 overflow-hidden px-6 py-8 sm:gap-12 sm:px-10 sm:py-24";
+
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-12 px-6 py-16 sm:px-10 sm:py-24">
+    <div className={rootClass}>
       <header className="stagger-in stagger-1 flex items-baseline justify-between">
         <h1 className="font-serif text-3xl tracking-tight text-[var(--foreground)]">
           tone zone
@@ -334,9 +343,11 @@ export default function Home() {
       <hr className="stagger-in stagger-2 border-t border-[var(--border)]" />
 
       <main
-        className={`flex flex-col gap-10 ${
-          !current ? "flex-1 justify-center" : ""
-        }`}
+        className={
+          !current
+            ? "flex flex-1 flex-col justify-center gap-6 sm:gap-10"
+            : "flex flex-col gap-10"
+        }
       >
         {!current && (
           <>
