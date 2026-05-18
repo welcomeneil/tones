@@ -29,11 +29,16 @@ export function ValueCountPicker({
           disabled={disabled}
           onClick={onToggleNotan}
           aria-pressed={notan}
-          className={`text-[10px] uppercase tracking-[0.2em] transition-colors ${
+          style={{ WebkitTapHighlightColor: "transparent" }}
+          className={`text-[10px] uppercase tracking-[0.2em] underline underline-offset-4 transition-[color,text-decoration-color] duration-200 ease-out ${
             notan
-              ? "text-[var(--foreground)] underline underline-offset-4"
-              : "text-[var(--muted)] hover:text-[var(--foreground)]"
-          } ${disabled ? "cursor-not-allowed opacity-40" : ""}`}
+              ? "text-[var(--foreground)] decoration-solid decoration-[var(--foreground)]"
+              : "text-[var(--muted)] decoration-dotted decoration-[var(--border)]"
+          } ${
+            disabled
+              ? "cursor-not-allowed opacity-40"
+              : "hover:text-[var(--foreground)] hover:decoration-[var(--muted)]"
+          }`}
         >
           notan
         </button>

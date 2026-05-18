@@ -35,7 +35,11 @@ export function TouchLoupe({
   const [mounted, setMounted] = useState(false);
   const [active, setActive] = useState(false);
 
+  // SSR-safe portal: defer the createPortal call until after hydration so we
+  // never touch document.body on the server. setState in effect is the
+  // accepted pattern for this; nothing else surfaces "is the DOM ready".
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 

@@ -18,7 +18,11 @@ const FAQS: Faq[] = [
   },
   {
     q: "How many values should I pick?",
-    a: "Two or three zones force the strongest read and are useful for thumbnails. Five to seven are closer to a finished study. Start low, then add — it is easier to see structure with fewer zones.",
+    a: "Two (notan) or three zones force the strongest read and are useful for thumbnails. Five to seven are closer to a finished study. Start low, then add — it is easier to see structure with fewer zones.",
+  },
+  {
+    q: "What is notan?",
+    a: "Notan is a Japanese design idea — the harmony of light and dark masses. Reduced to two values, an image becomes pure shape: only the major light and shadow patterns remain. It is the most unforgiving way to test a composition; if it reads at two values, it will read at any number. Toggle notan above the values picker to see it.",
   },
   {
     q: "What do the labels on the palette mean?",
