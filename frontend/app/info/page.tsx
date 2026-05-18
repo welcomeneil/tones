@@ -60,7 +60,17 @@ export default function InfoPage() {
         <p className="text-right text-[10px] uppercase tracking-[0.2em] leading-relaxed text-[var(--muted)]">
           a reference tool
           <br />
-          <span className="text-[var(--foreground)]">by neil</span>
+          <a
+            href="https://neil.ink/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group inline-flex items-baseline gap-1 text-[var(--foreground)] underline decoration-[var(--muted)] decoration-1 underline-offset-4 transition-colors hover:text-[var(--accent)] hover:decoration-[var(--accent)]"
+          >
+            by neil
+            <span aria-hidden="true" className="transition-transform group-hover:-translate-y-px group-hover:translate-x-px">
+              ↗
+            </span>
+          </a>
         </p>
       </header>
 
