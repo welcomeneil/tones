@@ -239,3 +239,20 @@ The web worker holds at most one image's grayscale + histogram. Track `workerLoa
 - **Resource closures for `ImageBitmap` / GPU-backed handles**: `.close()` is mandatory for GC of GPU memory; forgetting it leaks until tab close. Each setter that replaces a bitmap must close the prev unless someone else owns it.
 - **LRU vs chronological eviction**: chose chronological (newest-first, evict tail) for simplicity. A user pinging back-and-forth between two old entries while uploading new ones will eventually lose them. LRU would fix that at the cost of order-reshuffling UX.
 - **The `crypto.randomUUID()` fallback**: still need a fallback for older Safari / non-secure contexts. The `Date.now() + Math.random()` shim is fine for client-only id-of-a-session-thing but would be wrong for anything cross-machine.
+
+## 15. tattoo-stencil export (marching squares → RDP → SVG/PDF)
+
+Extended the app so the zone segmentation can be exported as a printable tattoo stencil — outlines only, one line style per zone boundary, downloadable as SVG or print-sized PDF for thermal stencil paper.
+
+**What we did.**
+- New `frontend/app/lib/algorithms/contours.ts`: marching squares over the binary mask `zone[p] >= k` for each `k ∈ [1, n-1]`, padded by a 1px sentinel ring so edge-touching regions become closed loops. Yields `n-1` boundary sets; each segment has one unambiguous "darker side" → one unambiguous style.
+- RDP simplification per polyline with `epsilon = max(0.75, longestEdgePx / 1400)`. Closed loops are split at the vertex farthest from `points[0]` first — naïve RDP on closed loops collapses (line(a,b) is degenerate when a==b).
+- Style table interpolates stroke width 0.35 → 1.4 SVG units across levels and gates dash pattern by `t < 0.2 → dotted`, `< 0.4 → dashed`, `else solid`. Floor at 0.85pt (~0.3mm) in PDF — anything thinner doesn't transfer on thermal paper.
+- SVG built as a string (not DOM). PDF via lazy-imported `pdf-lib` (~250kb gz) so the initial bundle is untouched until export.
+- Lives in a slide-up sheet (`StencilPanel.tsx`) anchored to the bottom bar — preserves the AnalyzedCanvas framing the artist uses for value comparison.
+
+**Tradeoff: classical contours stairstep on fine anatomy.** Hair, eyelashes, fabric edges follow the discrete zone grid and read jagged. Designed-in seam (`ContourSource` interface in `lib/stencil/types.ts`) lets a future learned edge model (HED via onnxruntime-web) replace `extractZoneContours` without touching styles or render.
+
+**Tradeoff: contours run on the main thread, not the worker.** `zoneIndexData` is already transferred out of the worker, so re-entering it would re-pay the transfer cost. ~60ms on 1024px @ N=7 is below the perceived lag threshold, and only runs when the panel opens (not on every N change).
+
+**Concepts to revisit.** marching squares, saddle-case disambiguation, Ramer–Douglas–Peucker, SVG `stroke-dasharray`/`shape-rendering`, `pdf-lib` coordinate system (origin bottom-left), HED edge detection, onnxruntime-web.

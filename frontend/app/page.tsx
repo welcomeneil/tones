@@ -7,6 +7,7 @@ import { DropZone } from "./components/DropZone";
 import { HistoryStrip } from "./components/HistoryStrip";
 import { ModeToggle } from "./components/ModeToggle";
 import { PaletteStrip } from "./components/PaletteStrip";
+import { StencilPanel } from "./components/StencilPanel";
 import { ValueCountPicker } from "./components/ValueCountPicker";
 import {
   type AnalyzedAssets,
@@ -45,6 +46,7 @@ export default function Home() {
   const [regionZones, setRegionZones] = useState<number[] | null>(null);
   const [inFlight, setInFlight] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [stencilOpen, setStencilOpen] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
   const workerRef = useRef<ProcessWorkerClient | null>(null);
@@ -255,6 +257,7 @@ export default function Home() {
     setError(null);
     setInFlight(false);
     setViewMode("zones");
+    setStencilOpen(false);
   };
 
   const onSelectHistory = (id: string) => {
@@ -467,7 +470,17 @@ export default function Home() {
       {current && result && (
         <div className="stagger-in stagger-7 sticky bottom-0 z-10 flex flex-col gap-3 border-t border-[var(--border)] bg-[var(--background)] py-4">
           <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
-            <ModeToggle value={viewMode} onChange={setViewMode} disabled={!result} />
+            <div className="flex items-center gap-4">
+              <ModeToggle value={viewMode} onChange={setViewMode} disabled={!result} />
+              <button
+                type="button"
+                onClick={() => setStencilOpen(true)}
+                disabled={!current?.analyzed}
+                className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)] underline underline-offset-4 decoration-dotted decoration-[var(--border)] transition-colors hover:text-[var(--foreground)] hover:decoration-[var(--muted)] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                stencil ↗
+              </button>
+            </div>
             <div className="flex items-center gap-4">
               {regionZones !== null && (
                 <button
@@ -510,6 +523,15 @@ export default function Home() {
             />
           </div>
         </div>
+      )}
+
+      {stencilOpen && current?.analyzed && (
+        <StencilPanel
+          result={current.analyzed.result}
+          zoneIndexData={current.analyzed.zoneIndexData}
+          filenameHint={current.file.name}
+          onClose={() => setStencilOpen(false)}
+        />
       )}
 
       <footer className="stagger-in stagger-8 mt-auto flex flex-wrap items-center justify-center gap-x-2 gap-y-1 border-t border-[var(--border)] pt-6 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
