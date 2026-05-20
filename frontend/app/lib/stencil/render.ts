@@ -88,7 +88,7 @@ export async function contoursToPdf(
   styles: LineStyle[],
   opts: PdfOpts,
 ): Promise<Blob> {
-  const { PDFDocument, rgb } = await import("pdf-lib");
+  const { PDFDocument, rgb, LineCapStyle } = await import("pdf-lib");
   const { width: W, height: H, boundaries } = set;
   const pointsPerInch = 72;
   const inchesPerCm = 1 / 2.54;
@@ -112,12 +112,17 @@ export async function contoursToPdf(
       ? style.dashArray.split(/\s+/).map((s) => Number.parseFloat(s) * scale)
       : undefined;
     for (const pl of boundary.polylines) {
-      const d = polylineToPdfPath(pl.points, pl.closed, scale, heightPt);
+      const d = polylineToPdfPath(pl.points, pl.closed, scale);
       if (!d) continue;
+      // drawSvgPath reads the path in SVG space (y-down, origin top-left) and
+      // flips it internally; anchoring at (0, heightPt) lands the image's top
+      // row at the page's top edge. The path coords must NOT be pre-flipped.
       page.drawSvgPath(d, {
+        x: 0,
+        y: heightPt,
         borderColor: color,
         borderWidth: thickness,
-        borderOpacity: style.opacity,
+        borderLineCap: LineCapStyle.Round,
         borderDashArray: dashArray,
       });
     }
@@ -128,20 +133,17 @@ export async function contoursToPdf(
   return new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
 }
 
-// pdf-lib's drawSvgPath uses PDF coordinates (origin bottom-left). Flip Y by
-// emitting `heightPt - y*scale`. Build a path string with absolute moves and
-// lines; pdf-lib parses standard SVG path syntax.
+// Path in SVG space (y-down, origin top-left), scaled to page points. No Y
+// flip here — drawSvgPath does that. pdf-lib parses standard path syntax.
 function polylineToPdfPath(
   points: readonly (readonly [number, number])[],
   closed: boolean,
   scale: number,
-  heightPt: number,
 ): string {
   if (points.length === 0) return "";
-  const fy = (y: number) => heightPt - y * scale;
-  let d = `M ${fmt(points[0][0] * scale)} ${fmt(fy(points[0][1]))}`;
+  let d = `M ${fmt(points[0][0] * scale)} ${fmt(points[0][1] * scale)}`;
   for (let i = 1; i < points.length; i++) {
-    d += ` L ${fmt(points[i][0] * scale)} ${fmt(fy(points[i][1]))}`;
+    d += ` L ${fmt(points[i][0] * scale)} ${fmt(points[i][1] * scale)}`;
   }
   if (closed) d += " Z";
   return d;

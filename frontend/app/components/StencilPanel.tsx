@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { extractZoneContours } from "../lib/algorithms/contours";
 import { styleTable, type StencilColor } from "../lib/stencil/styles";
 import {
@@ -18,6 +18,10 @@ type Props = {
   onClose: () => void;
 };
 
+// Must match the `duration-300` on the sheet's transform transition so the
+// parent unmounts only once the slide-out animation has finished.
+const SHEET_TRANSITION_MS = 300;
+
 export function StencilPanel({
   result,
   zoneIndexData,
@@ -30,21 +34,27 @@ export function StencilPanel({
   const [thicknessScale, setThicknessScale] = useState(1);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
-  // Enter animation: mount at translate-y-full then flip on next paint so the
-  // transition runs once. Unmount immediately on close — exit animation is a
-  // nice-to-have that would gate parent unmount on a timeout.
+  // Mount at translate-y-full then flip on next paint so the enter transition
+  // runs once. `requestClose` reverses it: slide the sheet down, then unmount
+  // after the transition so the exit animates too.
   const [shown, setShown] = useState(false);
   useEffect(() => {
     const id = requestAnimationFrame(() => setShown(true));
     return () => cancelAnimationFrame(id);
   }, []);
+
+  const requestClose = useCallback(() => {
+    setShown(false);
+    window.setTimeout(onClose, SHEET_TRANSITION_MS);
+  }, [onClose]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") requestClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [requestClose]);
 
   const contours = useMemo(
     () =>
@@ -107,10 +117,8 @@ export function StencilPanel({
       <button
         type="button"
         aria-label="close stencil panel"
-        onClick={onClose}
-        className={`flex-1 cursor-pointer bg-[var(--foreground)]/30 transition-opacity duration-300 ease-out ${
-          shown ? "opacity-100" : "opacity-0"
-        }`}
+        onClick={requestClose}
+        className="flex-1 cursor-default"
         style={{ minHeight: "10vh" }}
       />
       <div
@@ -124,7 +132,7 @@ export function StencilPanel({
           </h2>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)] hover:text-[var(--foreground)]"
           >
             close
