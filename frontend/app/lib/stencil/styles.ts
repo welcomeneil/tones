@@ -3,11 +3,11 @@
 // [k, n-1]. In tone_zone, zone index 0 is the DARKEST tone and n-1 the
 // lightest.
 //
-// ORIENTATION: line weight increases with k. Because k climbs toward the
-// light end, this orientation gives the lightest-zone boundaries the heavy
-// solid strokes and the darkest core the thin dotted hairline. This is a
-// deliberate, swappable choice — see the `t` line in styleForBoundary; the
-// inverse (dark = heavy) is one edit there.
+// ORIENTATION (stencil-dark-emphasis branch): line weight DECREASES with k.
+// Because zone 0 is the darkest tone, this gives the darkest-core boundary
+// the heavy solid stroke and the lightest transitions the thin dotted
+// hairline — heavy ink intuition, dark = dense. The `main` branch uses the
+// inverse (light = heavy); the difference is the `t` line in styleForBoundary.
 
 export type LineStyle = {
   strokeWidth: number; // in SVG user units (= image pixels in viewBox)
@@ -32,9 +32,9 @@ export function styleForBoundary(
   opts: StencilStyleOpts,
 ): LineStyle {
   const denom = Math.max(1, n - 1);
-  // t→1 = heaviest. Here t rises with k, so the lightest-zone boundaries are
-  // heaviest. Invert to `(denom + 1 - level) / denom` for dark = heavy.
-  const t = level / denom;
+  // t→1 = heaviest. Here t falls as k rises, so the darkest-core boundary
+  // (k=1) is heaviest. The `main` branch uses `level / denom` (light = heavy).
+  const t = (denom + 1 - level) / denom;
   const minW = 0.35;
   const maxW = 1.4;
   const strokeWidth = lerp(minW, maxW, t) * opts.thicknessScale;
