@@ -69,92 +69,128 @@ function fmt(n: number): string {
   return (Math.round(n * 100) / 100).toString();
 }
 
-// ── PDF export ───────────────────────────────────────────────────────────
-// Lazy-loaded so the ~250kb pdf-lib chunk doesn't touch the initial bundle.
-// Renders each polyline as a vector path at the requested physical size; one
-// page sized to fit. Stroke widths are converted to physical units via the
-// same image→page scale so the printed dash patterns match the on-screen
-// preview.
+// ── PNG export ───────────────────────────────────────────────────────────
+// Rasterizes the contours directly onto a canvas at print resolution. The
+// chosen physical size drives the pixel count at 300 DPI; a pHYs chunk is
+// embedded so "print at actual size" lands at the right dimensions. Drawn
+// straight with Path2D (no SVG round-trip) so strokes and dashes are clean.
 
-export type PdfOpts = {
+const TARGET_DPI = 300;
+const METRES_PER_INCH = 0.0254;
+const STENCIL_MIN_STROKE_MM = 0.3; // dotted hairlines below this don't transfer
+// Cap the long edge so a 20-inch request can't allocate a 6000²px canvas.
+const MAX_CANVAS_PX = 4000;
+
+export type PngOpts = {
   color: StencilColor;
-  physicalWidth: number; // e.g. 4
+  physicalWidth: number;
   unit: "in" | "cm";
-  minStrokePt?: number; // floor so dotted hairlines actually transfer (default 0.85pt ≈ 0.3mm)
 };
 
-export async function contoursToPdf(
+export async function contoursToPng(
   set: ContourSet,
   styles: LineStyle[],
-  opts: PdfOpts,
+  opts: PngOpts,
 ): Promise<Blob> {
-  const { PDFDocument, rgb, LineCapStyle } = await import("pdf-lib");
   const { width: W, height: H, boundaries } = set;
-  const pointsPerInch = 72;
-  const inchesPerCm = 1 / 2.54;
-  const widthIn = opts.unit === "cm" ? opts.physicalWidth * inchesPerCm : opts.physicalWidth;
-  const widthPt = widthIn * pointsPerInch;
-  const heightPt = (H / W) * widthPt;
-  const scale = widthPt / W; // image-unit → page-pt
-  const minStrokePt = opts.minStrokePt ?? 0.85;
+  const widthIn =
+    opts.unit === "cm" ? opts.physicalWidth / 2.54 : opts.physicalWidth;
 
-  const doc = await PDFDocument.create();
-  const page = doc.addPage([widthPt, heightPt]);
+  let widthPx = Math.round(widthIn * TARGET_DPI);
+  let heightPx = Math.round((H / W) * widthPx);
+  let dpi = TARGET_DPI;
+  const longest = Math.max(widthPx, heightPx);
+  if (longest > MAX_CANVAS_PX) {
+    const factor = MAX_CANVAS_PX / longest;
+    widthPx = Math.round(widthPx * factor);
+    heightPx = Math.round(heightPx * factor);
+    dpi = TARGET_DPI * factor;
+  }
 
-  const [r, g, b] = hexToRgb(opts.color);
-  const color = rgb(r, g, b);
+  const scale = widthPx / W; // image-unit → device px
+  const minStrokePx = (STENCIL_MIN_STROKE_MM / 25.4) * dpi;
 
-  for (const boundary of boundaries) {
+  const canvas = new OffscreenCanvas(widthPx, heightPx);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("2d canvas unavailable");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, widthPx, heightPx);
+  ctx.strokeStyle = opts.color;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  // Ascending stroke width so heavier lines paint over lighter ones — matches
+  // contoursToSvg's paint order.
+  const ordered = boundaries
+    .map((b) => ({ b, w: styles[b.level - 1]?.strokeWidth ?? 0 }))
+    .sort((x, y) => x.w - y.w)
+    .map((e) => e.b);
+
+  for (const boundary of ordered) {
     const style = styles[boundary.level - 1];
     if (!style) continue;
-    const thickness = Math.max(minStrokePt, style.strokeWidth * scale);
-    const dashArray = style.dashArray
-      ? style.dashArray.split(/\s+/).map((s) => Number.parseFloat(s) * scale)
-      : undefined;
+    ctx.lineWidth = Math.max(minStrokePx, style.strokeWidth * scale);
+    ctx.setLineDash(
+      style.dashArray
+        ? style.dashArray
+            .split(/\s+/)
+            .map((s) => Number.parseFloat(s) * scale)
+        : [],
+    );
+    const path = new Path2D();
     for (const pl of boundary.polylines) {
-      const d = polylineToPdfPath(pl.points, pl.closed, scale);
-      if (!d) continue;
-      // drawSvgPath reads the path in SVG space (y-down, origin top-left) and
-      // flips it internally; anchoring at (0, heightPt) lands the image's top
-      // row at the page's top edge. The path coords must NOT be pre-flipped.
-      page.drawSvgPath(d, {
-        x: 0,
-        y: heightPt,
-        borderColor: color,
-        borderWidth: thickness,
-        borderLineCap: LineCapStyle.Round,
-        borderDashArray: dashArray,
-      });
+      const pts = pl.points;
+      if (pts.length === 0) continue;
+      path.moveTo(pts[0][0] * scale, pts[0][1] * scale);
+      for (let i = 1; i < pts.length; i++) {
+        path.lineTo(pts[i][0] * scale, pts[i][1] * scale);
+      }
+      if (pl.closed) path.closePath();
+    }
+    ctx.stroke(path);
+  }
+
+  const blob = await canvas.convertToBlob({ type: "image/png" });
+  const tagged = embedPngDpi(new Uint8Array(await blob.arrayBuffer()), dpi);
+  return new Blob([tagged], { type: "image/png" });
+}
+
+// Inject a pHYs chunk so the PNG carries its true print resolution. IHDR is
+// always the first chunk and always 13 data bytes, so it ends at a fixed
+// offset (8-byte signature + 25-byte IHDR chunk); pHYs is inserted right
+// after it, which satisfies the "before IDAT" ordering rule.
+function embedPngDpi(png: Uint8Array, dpi: number): Uint8Array<ArrayBuffer> {
+  const ppm = Math.round(dpi / METRES_PER_INCH); // pixels per metre
+  const typeAndData = new Uint8Array(13); // "pHYs" + 9 data bytes
+  typeAndData.set([0x70, 0x48, 0x59, 0x73], 0);
+  const dv = new DataView(typeAndData.buffer);
+  dv.setUint32(4, ppm);
+  dv.setUint32(8, ppm);
+  typeAndData[12] = 1; // unit specifier: metre
+
+  const chunk = new Uint8Array(21); // len(4) + type+data(13) + crc(4)
+  const cdv = new DataView(chunk.buffer);
+  cdv.setUint32(0, 9); // pHYs data length
+  chunk.set(typeAndData, 4);
+  cdv.setUint32(17, crc32(typeAndData));
+
+  const insertAt = 33;
+  const out = new Uint8Array(png.length + chunk.length);
+  out.set(png.subarray(0, insertAt), 0);
+  out.set(chunk, insertAt);
+  out.set(png.subarray(insertAt), insertAt + chunk.length);
+  return out;
+}
+
+function crc32(bytes: Uint8Array): number {
+  let crc = 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) {
+    crc ^= bytes[i];
+    for (let k = 0; k < 8; k++) {
+      crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
     }
   }
-
-  const bytes = await doc.save();
-  // Vercel: keep Blob construction in a portable shape (Uint8Array source).
-  return new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
-}
-
-// Path in SVG space (y-down, origin top-left), scaled to page points. No Y
-// flip here — drawSvgPath does that. pdf-lib parses standard path syntax.
-function polylineToPdfPath(
-  points: readonly (readonly [number, number])[],
-  closed: boolean,
-  scale: number,
-): string {
-  if (points.length === 0) return "";
-  let d = `M ${fmt(points[0][0] * scale)} ${fmt(points[0][1] * scale)}`;
-  for (let i = 1; i < points.length; i++) {
-    d += ` L ${fmt(points[i][0] * scale)} ${fmt(points[i][1] * scale)}`;
-  }
-  if (closed) d += " Z";
-  return d;
-}
-
-function hexToRgb(hex: string): [number, number, number] {
-  const v = hex.replace(/^#/, "");
-  const r = parseInt(v.slice(0, 2), 16) / 255;
-  const g = parseInt(v.slice(2, 4), 16) / 255;
-  const b = parseInt(v.slice(4, 6), 16) / 255;
-  return [r, g, b];
+  return (crc ^ 0xffffffff) >>> 0;
 }
 
 // ── Download helpers ─────────────────────────────────────────────────────

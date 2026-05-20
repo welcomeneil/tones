@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { extractZoneContours } from "../lib/algorithms/contours";
 import { styleTable, type StencilColor } from "../lib/stencil/styles";
 import {
-  contoursToPdf,
+  contoursToPng,
   contoursToSvg,
   downloadBlob,
   svgStringToBlob,
@@ -32,8 +32,8 @@ export function StencilPanel({
   const [physicalWidth, setPhysicalWidth] = useState(4);
   const [unit, setUnit] = useState<"in" | "cm">("in");
   const [thicknessScale, setThicknessScale] = useState(1);
-  const [pdfBusy, setPdfBusy] = useState(false);
-  const [pdfError, setPdfError] = useState<string | null>(null);
+  const [pngBusy, setPngBusy] = useState(false);
+  const [pngError, setPngError] = useState<string | null>(null);
   // Mount at translate-y-full then flip on next paint so the enter transition
   // runs once. `requestClose` reverses it: slide the sheet down, then unmount
   // after the transition so the exit animates too.
@@ -88,23 +88,20 @@ export function StencilPanel({
     downloadBlob(svgStringToBlob(exportSvg), `${exportBase}-stencil.svg`);
   };
 
-  const onDownloadPdf = async () => {
-    setPdfBusy(true);
-    setPdfError(null);
+  const onDownloadPng = async () => {
+    setPngBusy(true);
+    setPngError(null);
     try {
-      const blob = await contoursToPdf(contours, styles, {
+      const blob = await contoursToPng(contours, styles, {
         color,
         physicalWidth,
         unit,
       });
-      downloadBlob(
-        blob,
-        `${exportBase}-stencil-${physicalWidth}${unit}.pdf`,
-      );
+      downloadBlob(blob, `${exportBase}-stencil-${physicalWidth}${unit}.png`);
     } catch (err) {
-      setPdfError(err instanceof Error ? err.message : "pdf export failed");
+      setPngError(err instanceof Error ? err.message : "png export failed");
     } finally {
-      setPdfBusy(false);
+      setPngBusy(false);
     }
   };
 
@@ -235,7 +232,7 @@ export function StencilPanel({
                 </div>
               </div>
               <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
-                width · height auto
+                width · height auto · 300 dpi
               </p>
             </Field>
 
@@ -249,15 +246,15 @@ export function StencilPanel({
               </button>
               <button
                 type="button"
-                onClick={onDownloadPdf}
-                disabled={pdfBusy}
+                onClick={onDownloadPng}
+                disabled={pngBusy}
                 className="flex h-11 items-center justify-center border border-[var(--foreground)] font-mono text-xs uppercase tracking-[0.2em] text-[var(--foreground)] transition-colors hover:bg-[var(--foreground)] hover:text-[var(--background)] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {pdfBusy ? "preparing pdf…" : `download pdf · ${physicalWidth}${unit}`}
+                {pngBusy ? "rendering png…" : `download png · ${physicalWidth}${unit}`}
               </button>
-              {pdfError && (
+              {pngError && (
                 <p role="alert" className="text-xs text-[var(--accent)]">
-                  {pdfError}
+                  {pngError}
                 </p>
               )}
             </div>
