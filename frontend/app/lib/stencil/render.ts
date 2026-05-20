@@ -71,15 +71,18 @@ function fmt(n: number): string {
 
 // ── PNG export ───────────────────────────────────────────────────────────
 // Rasterizes the contours directly onto a canvas at print resolution. The
-// chosen physical size drives the pixel count at 300 DPI; a pHYs chunk is
+// chosen physical size drives the pixel count at 600 DPI; a pHYs chunk is
 // embedded so "print at actual size" lands at the right dimensions. Drawn
 // straight with Path2D (no SVG round-trip) so strokes and dashes are clean.
+//
+// Stroke widths and dash lengths are scaled by exactly `scale` (and nothing
+// else) so the rasterized output is a pixel-faithful enlargement of the SVG
+// preview — same weight hierarchy, same dotted hairlines, no clamping.
 
-const TARGET_DPI = 300;
+const TARGET_DPI = 600; // line-art / thermal-stencil standard; crisp for Procreate
 const METRES_PER_INCH = 0.0254;
-const STENCIL_MIN_STROKE_MM = 0.3; // dotted hairlines below this don't transfer
-// Cap the long edge so a 20-inch request can't allocate a 6000²px canvas.
-const MAX_CANVAS_PX = 4000;
+// Cap the long edge so a 20-inch request can't allocate a huge canvas.
+const MAX_CANVAS_PX = 6000;
 
 export type PngOpts = {
   color: StencilColor;
@@ -108,7 +111,6 @@ export async function contoursToPng(
   }
 
   const scale = widthPx / W; // image-unit → device px
-  const minStrokePx = (STENCIL_MIN_STROKE_MM / 25.4) * dpi;
 
   const canvas = new OffscreenCanvas(widthPx, heightPx);
   const ctx = canvas.getContext("2d");
@@ -129,7 +131,7 @@ export async function contoursToPng(
   for (const boundary of ordered) {
     const style = styles[boundary.level - 1];
     if (!style) continue;
-    ctx.lineWidth = Math.max(minStrokePx, style.strokeWidth * scale);
+    ctx.lineWidth = style.strokeWidth * scale;
     ctx.setLineDash(
       style.dashArray
         ? style.dashArray

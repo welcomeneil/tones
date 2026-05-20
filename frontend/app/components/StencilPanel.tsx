@@ -232,7 +232,7 @@ export function StencilPanel({
                 </div>
               </div>
               <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
-                width · height auto · 300 dpi
+                width · height auto · 600 dpi
               </p>
             </Field>
 

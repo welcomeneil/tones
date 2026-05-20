@@ -258,3 +258,15 @@ Extended the app so the zone segmentation can be exported as a printable tattoo 
 **Tradeoff: contours run on the main thread, not the worker.** `zoneIndexData` is already transferred out of the worker, so re-entering it would re-pay the transfer cost. ~60ms on 1024px @ N=7 is below the perceived lag threshold, and only runs when the panel opens (not on every N change).
 
 **Concepts to revisit.** marching squares, saddle-case disambiguation, Ramer–Douglas–Peucker, SVG `stroke-dasharray`/`shape-rendering`, PNG chunk structure (`pHYs`, CRC-32, IHDR ordering), `OffscreenCanvas.convertToBlob`, HED edge detection, onnxruntime-web.
+
+## 16. stencil PNG mismatch — the absolute stroke floor was wrong
+
+The exported PNG looked nothing like the on-screen SVG preview: every line was the same bloated weight and all dashed/dotted hairlines had merged into solid lines.
+
+**Root cause: a flat minimum-stroke clamp applied to *all* strokes.** PNG export had `ctx.lineWidth = Math.max(minStrokePx, strokeWidth * scale)` where `minStrokePx = 0.3mm` at the export DPI (~3.5px at 300 DPI). Contours live at ≤1200px (the analysis downscale cap), so for a 4in/300-DPI export `scale ≈ 1`, putting real stroke widths at ~0.5–1.8px — *all below the 3.5px floor*. So every line clamped to the same value: weight hierarchy gone, lines bloated. Dashes died as a side effect — a 0.4px dash drawn with a 3.5px **round cap** becomes a ~4px blob that swallows the 1.2px gap. The SVG preview had no floor, so the two diverged.
+
+**Fix.** Removed the floor entirely. PNG strokes and dashes now scale by exactly `scale` and nothing else, so the raster is a pixel-faithful enlargement of the SVG. The "0.3mm doesn't transfer on thermal paper" intent (§15) was misapplied: a per-stroke *absolute* floor flattens the weight curve. The right place for a thinness guarantee, if ever needed, is the *style table* (raise `minW`), not the rasterizer — that keeps preview and export in sync.
+
+**Also: raised export to 600 DPI**, long-edge cap 4000→6000px. 600 DPI is the line-art / thermal-stencil standard and gives artists more pixels to resize against in Procreate. The geometry is vector polylines, so rendering bigger stays crisp — it doesn't invent detail beyond the 1200px contour source.
+
+**Concept to revisit.** *Render-parity bugs*: when one path renders a preview and another renders the export, any transform applied to only one (a clamp, a flip, a cap) silently desyncs them. The fix is to push shared decisions upstream of both renderers (here: into the style table) so neither renderer can diverge.
