@@ -7,7 +7,6 @@ import {
   contoursToPng,
   contoursToSvg,
   downloadBlob,
-  svgStringToBlob,
 } from "../lib/stencil/render";
 import type { AnalyzeResult } from "../lib/types";
 
@@ -81,13 +80,6 @@ export function StencilPanel({
 
   const exportBase = useMemo(() => sanitizeBasename(filenameHint), [filenameHint]);
 
-  const onDownloadSvg = () => {
-    // Re-render without the white preview backdrop so the printed/imported
-    // SVG has a transparent background (cleaner for downstream editing).
-    const exportSvg = contoursToSvg(contours, styles, { color, background: "none" });
-    downloadBlob(svgStringToBlob(exportSvg), `${exportBase}-stencil.svg`);
-  };
-
   const onDownloadPng = async () => {
     setPngBusy(true);
     setPngError(null);
@@ -119,7 +111,7 @@ export function StencilPanel({
         style={{ minHeight: "10vh" }}
       />
       <div
-        className={`flex max-h-[88vh] flex-col gap-6 border-t border-[var(--border)] bg-[var(--background)] px-6 py-6 transition-transform duration-300 ease-out sm:max-h-[78vh] sm:px-10 sm:py-8 ${
+        className={`flex flex-col gap-6 border-t border-[var(--border)] bg-[var(--background)] px-6 py-6 transition-transform duration-300 ease-out sm:px-10 sm:py-8 ${
           shown ? "translate-y-0" : "translate-y-full"
         }`}
       >
@@ -137,7 +129,7 @@ export function StencilPanel({
         </div>
 
         <div className="grid flex-1 grid-cols-1 gap-6 overflow-hidden sm:grid-cols-[1fr_18rem] sm:gap-10">
-          <div className="flex min-h-0 items-center justify-center overflow-auto border border-[var(--border)] bg-white">
+          <div className="flex min-h-0 items-center justify-center overflow-hidden border border-[var(--border)] bg-white">
             <div
               aria-label="stencil preview"
               className="flex h-full w-full items-center justify-center p-2 [&>svg]:max-h-full [&>svg]:max-w-full [&>svg]:object-contain"
@@ -145,7 +137,7 @@ export function StencilPanel({
             />
           </div>
 
-          <div className="flex flex-col gap-6 overflow-y-auto">
+          <div className="flex flex-col gap-6">
             <Field label="ink">
               <div className="flex gap-1">
                 <ToggleButton
@@ -186,7 +178,6 @@ export function StencilPanel({
                         strokeLinecap="round"
                       />
                     </svg>
-                    <Swatch value={result.palette[i + 1]} label={`V${i + 2}`} />
                   </li>
                 ))}
               </ul>
@@ -239,16 +230,9 @@ export function StencilPanel({
             <div className="flex flex-col gap-2 pt-2">
               <button
                 type="button"
-                onClick={onDownloadSvg}
-                className="flex h-11 items-center justify-center bg-[var(--foreground)] font-mono text-xs uppercase tracking-[0.2em] text-[var(--background)] transition-colors hover:bg-[var(--accent)]"
-              >
-                download svg
-              </button>
-              <button
-                type="button"
                 onClick={onDownloadPng}
                 disabled={pngBusy}
-                className="flex h-11 items-center justify-center border border-[var(--foreground)] font-mono text-xs uppercase tracking-[0.2em] text-[var(--foreground)] transition-colors hover:bg-[var(--foreground)] hover:text-[var(--background)] disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex h-11 items-center justify-center bg-[var(--foreground)] font-mono text-xs uppercase tracking-[0.2em] text-[var(--background)] transition-colors hover:bg-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {pngBusy ? "rendering png…" : `download png · ${physicalWidth}${unit}`}
               </button>
@@ -282,9 +266,8 @@ function Field({
   );
 }
 
-// Each stencil line is a *boundary* between two tonal zones; the swatch pair
-// flanking a line sample shows the artist exactly which two values that line
-// weight separates — so the legend reads as "this weight = this transition".
+// The swatch beside a line sample shows the tonal value that line weight
+// belongs to, so the legend reads as "this weight = this value".
 function Swatch({ value, label }: { value: number; label: string }) {
   return (
     <span className="flex flex-shrink-0 flex-col items-center gap-0.5">
