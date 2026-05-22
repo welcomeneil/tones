@@ -111,7 +111,7 @@ export function StencilPanel({
         style={{ minHeight: "10vh" }}
       />
       <div
-        className={`flex flex-col gap-6 border-t border-[var(--border)] bg-[var(--background)] px-6 py-6 transition-transform duration-300 ease-out sm:px-10 sm:py-8 ${
+        className={`flex max-h-[88vh] flex-col gap-6 border-t border-[var(--border)] bg-[var(--background)] px-6 py-6 transition-transform duration-300 ease-out sm:max-h-[82vh] sm:px-10 sm:py-8 ${
           shown ? "translate-y-0" : "translate-y-full"
         }`}
       >
@@ -128,8 +128,8 @@ export function StencilPanel({
           </button>
         </div>
 
-        <div className="grid flex-1 grid-cols-1 gap-6 overflow-hidden sm:grid-cols-[1fr_18rem] sm:gap-10">
-          <div className="flex min-h-0 items-center justify-center overflow-hidden border border-[var(--border)] bg-white">
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 overflow-y-auto sm:grid-cols-[1fr_18rem] sm:grid-rows-1 sm:gap-10 sm:overflow-hidden">
+          <div className="flex h-64 min-h-0 min-w-0 items-center justify-center overflow-hidden border border-[var(--border)] bg-white sm:h-auto">
             <div
               aria-label="stencil preview"
               className="flex h-full w-full items-center justify-center p-2 [&>svg]:max-h-full [&>svg]:max-w-full [&>svg]:object-contain"
@@ -137,7 +137,7 @@ export function StencilPanel({
             />
           </div>
 
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-6 sm:overflow-y-auto">
             <Field label="ink">
               <div className="flex gap-1">
                 <ToggleButton
