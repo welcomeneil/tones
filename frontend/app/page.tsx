@@ -449,19 +449,9 @@ export default function Home() {
 
       {current && result && (
         <div className="stagger-in stagger-7 sticky bottom-0 z-10 flex flex-col gap-3 border-t border-[var(--border)] bg-[var(--background)] py-4">
-          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
-            <div className="flex items-center gap-4">
+          <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+            <div className="flex items-center gap-4 sm:gap-6">
               <ModeToggle value={viewMode} onChange={setViewMode} disabled={!result} />
-              <button
-                type="button"
-                onClick={() => setStencilOpen(true)}
-                disabled={!current?.analyzed}
-                className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)] underline underline-offset-4 decoration-dotted decoration-[var(--border)] transition-colors hover:text-[var(--foreground)] hover:decoration-[var(--muted)] disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                stencil ↗
-              </button>
-            </div>
-            <div className="flex items-center gap-4">
               {regionZones !== null && (
                 <button
                   type="button"
@@ -487,6 +477,26 @@ export default function Home() {
                 )}
               </p>
             </div>
+            {/* Export stencil — the printable artifact the tool exists to
+                produce. Typographic action in the same family as the header's
+                `by neil ↗` link: foreground color (not muted) marks it as
+                primary; the arrow + hover nudge carry the affordance. */}
+            <button
+              type="button"
+              onClick={() => setStencilOpen(true)}
+              disabled={!current?.analyzed}
+              className="group inline-flex shrink-0 items-baseline gap-1.5 text-xs uppercase tracking-[0.2em] text-[var(--foreground)] transition-colors hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:text-[var(--muted)] disabled:hover:text-[var(--muted)]"
+            >
+              <span className="underline underline-offset-4 decoration-1 decoration-[var(--muted)] transition-colors group-hover:decoration-[var(--accent)] group-disabled:decoration-[var(--border)]">
+                export stencil
+              </span>
+              <span
+                aria-hidden="true"
+                className="transition-transform group-hover:-translate-y-px group-hover:translate-x-px"
+              >
+                ↗
+              </span>
+            </button>
           </div>
           <div
             className={`transition-opacity duration-300 ease-out ${

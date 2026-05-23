@@ -111,24 +111,30 @@ export function StencilPanel({
         style={{ minHeight: "10vh" }}
       />
       <div
-        className={`flex max-h-[88vh] flex-col gap-6 border-t border-[var(--border)] bg-[var(--background)] px-6 py-6 transition-transform duration-300 ease-out sm:max-h-[82vh] sm:px-10 sm:py-8 ${
+        className={`flex max-h-[92vh] flex-col gap-5 overflow-y-auto border-t border-[var(--border)] bg-[var(--background)] px-6 py-6 transition-transform duration-300 ease-out sm:max-h-[90vh] sm:gap-6 sm:px-10 sm:py-6 ${
           shown ? "translate-y-0" : "translate-y-full"
         }`}
       >
-        <div className="flex items-baseline justify-between">
-          <h2 className="font-serif text-2xl text-[var(--foreground)]">
-            stencil
-          </h2>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-1">
+            <h2 className="font-serif text-2xl text-[var(--foreground)]">
+              Export stencil
+            </h2>
+            <p className="text-xs text-[var(--muted)]">
+              A printable line guide built from your value zones — heavier
+              weights for darker tones.
+            </p>
+          </div>
           <button
             type="button"
             onClick={requestClose}
-            className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)] hover:text-[var(--foreground)]"
+            className="shrink-0 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)] hover:text-[var(--foreground)]"
           >
             close
           </button>
         </div>
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 overflow-y-auto sm:grid-cols-[1fr_18rem] sm:grid-rows-1 sm:gap-10 sm:overflow-hidden">
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-5 sm:grid-cols-[1fr_18rem] sm:grid-rows-1 sm:gap-10">
           <div className="flex h-64 min-h-0 min-w-0 items-center justify-center overflow-hidden border border-[var(--border)] bg-white sm:h-auto">
             <div
               aria-label="stencil preview"
@@ -137,7 +143,7 @@ export function StencilPanel({
             />
           </div>
 
-          <div className="flex flex-col gap-6 sm:overflow-y-auto">
+          <div className="flex flex-col gap-5">
             <Field label="ink">
               <div className="flex gap-1">
                 <ToggleButton
@@ -156,22 +162,31 @@ export function StencilPanel({
             </Field>
 
             <Field label="line styles">
-              <ul className="flex flex-col gap-1.5">
+              <ul className="flex flex-col gap-1">
                 {styles.map((s, i) => (
-                  <li key={i} className="flex items-center gap-2">
-                    <Swatch value={result.palette[i]} label={`V${i + 1}`} />
-                    <svg
-                      width="92"
-                      height="12"
-                      viewBox="0 0 92 12"
+                  <li key={i} className="flex items-center gap-2.5">
+                    <span
                       aria-hidden="true"
-                      className="flex-shrink-0"
+                      className="block h-4 w-4 flex-shrink-0 border border-[var(--border)]"
+                      style={{
+                        backgroundColor: `rgb(${result.palette[i]}, ${result.palette[i]}, ${result.palette[i]})`,
+                      }}
+                    />
+                    <span className="w-6 font-mono text-[10px] tabular-nums tracking-wide text-[var(--muted)]">
+                      V{i + 1}
+                    </span>
+                    <svg
+                      height="10"
+                      viewBox="0 0 120 10"
+                      preserveAspectRatio="none"
+                      aria-hidden="true"
+                      className="h-2.5 flex-1"
                     >
                       <line
                         x1="2"
-                        y1="6"
-                        x2="90"
-                        y2="6"
+                        y1="5"
+                        x2="118"
+                        y2="5"
                         stroke={color}
                         strokeWidth={s.strokeWidth}
                         strokeDasharray={s.dashArray ?? undefined}
@@ -263,22 +278,6 @@ function Field({
       </span>
       {children}
     </div>
-  );
-}
-
-// The swatch beside a line sample shows the tonal value that line weight
-// belongs to, so the legend reads as "this weight = this value".
-function Swatch({ value, label }: { value: number; label: string }) {
-  return (
-    <span className="flex flex-shrink-0 flex-col items-center gap-0.5">
-      <span
-        className="block h-6 w-6 border border-[var(--border)]"
-        style={{ backgroundColor: `rgb(${value}, ${value}, ${value})` }}
-      />
-      <span className="font-mono text-[8px] tabular-nums tracking-wide text-[var(--muted)]">
-        {label}
-      </span>
-    </span>
   );
 }
 
