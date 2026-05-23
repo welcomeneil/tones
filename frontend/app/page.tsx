@@ -7,6 +7,7 @@ import { DropZone } from "./components/DropZone";
 import { HistoryStrip } from "./components/HistoryStrip";
 import { ModeToggle } from "./components/ModeToggle";
 import { PaletteStrip } from "./components/PaletteStrip";
+import { StencilPanel } from "./components/StencilPanel";
 import { ValueCountPicker } from "./components/ValueCountPicker";
 import {
   type AnalyzedAssets,
@@ -45,6 +46,7 @@ export default function Home() {
   const [regionZones, setRegionZones] = useState<number[] | null>(null);
   const [inFlight, setInFlight] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [stencilOpen, setStencilOpen] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
   const workerRef = useRef<ProcessWorkerClient | null>(null);
@@ -255,6 +257,7 @@ export default function Home() {
     setError(null);
     setInFlight(false);
     setViewMode("zones");
+    setStencilOpen(false);
   };
 
   const onSelectHistory = (id: string) => {
@@ -308,18 +311,18 @@ export default function Home() {
     [history],
   );
 
-  // Landing state (no image yet) clamps to the viewport so there's no scroll
-  // on mobile — small phones can't afford the desktop py-16/gap-12 spacing
-  // and still fit the dropzone + history strip + footer in one viewport. The
-  // analyzed state keeps its scrolling layout because the palette + canvas +
-  // history strip legitimately exceed a phone viewport.
+  // Landing state is a fixed-height shell that never scrolls: the dropzone is
+  // the lone flex-1 element and absorbs size changes, so the session strip and
+  // footer always stay in view. The analyzed (image) state keeps a normal
+  // scrolling layout — the canvas renders at natural size and the palette bar
+  // sticks to the bottom, so a tall image / long session simply scrolls.
   const rootClass = current
     ? "mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-12 px-6 py-16 sm:px-10 sm:py-24"
-    : "mx-auto flex h-[100dvh] w-full max-w-4xl flex-col gap-6 overflow-hidden px-6 py-8 sm:gap-12 sm:px-10 sm:py-24";
+    : "mx-auto flex h-[100dvh] w-full max-w-4xl flex-col gap-4 overflow-hidden px-6 py-6 sm:gap-6 sm:px-10 sm:py-8";
 
   return (
     <div className={rootClass}>
-      <header className="stagger-in stagger-1 flex items-baseline justify-between">
+      <header className="stagger-in stagger-1 flex shrink-0 items-baseline justify-between">
         <h1 className="font-serif text-3xl tracking-tight text-[var(--foreground)]">
           tone zone
         </h1>
@@ -340,25 +343,25 @@ export default function Home() {
         </p>
       </header>
 
-      <hr className="stagger-in stagger-2 border-t border-[var(--border)]" />
+      <hr className="stagger-in stagger-2 shrink-0 border-t border-[var(--border)]" />
 
       <main
         className={
           !current
-            ? "flex flex-1 flex-col justify-center gap-6 sm:gap-10"
+            ? "flex min-h-0 flex-1 flex-col justify-center gap-6 sm:gap-10"
             : "flex flex-col gap-10"
         }
       >
         {!current && (
           <>
-            <h2 className="stagger-in stagger-3 text-center font-serif text-4xl leading-snug text-[var(--foreground)]">
+            <h2 className="stagger-in stagger-3 shrink-0 text-center font-serif text-4xl leading-snug text-[var(--foreground)]">
               Upload a reference.
             </h2>
-            <div className="stagger-in stagger-4">
+            <div className="stagger-in stagger-4 flex max-h-64 min-h-[8rem] flex-1 flex-col">
               <DropZone onFile={onUploadFile} />
             </div>
             {thumbEntries.length > 0 && (
-              <div className="stagger-in stagger-5">
+              <div className="stagger-in stagger-5 shrink-0">
                 <HistoryStrip
                   entries={thumbEntries}
                   currentId={currentId}
@@ -372,7 +375,7 @@ export default function Home() {
 
         {current && (
           <>
-            <div className="stagger-in stagger-3 flex items-baseline justify-between">
+            <div className="stagger-in stagger-3 flex shrink-0 items-baseline justify-between">
               <p className="font-mono text-xs text-[var(--muted)]">
                 {current.file.name}
               </p>
@@ -420,7 +423,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="stagger-in stagger-5">
+            <div className="stagger-in stagger-5 shrink-0">
               <ValueCountPicker
                 value={current.n}
                 onChange={onChangeN}
@@ -431,7 +434,7 @@ export default function Home() {
             </div>
 
             {thumbEntries.length > 1 && (
-              <div className="stagger-in stagger-5">
+              <div className="stagger-in stagger-5 shrink-0">
                 <HistoryStrip
                   entries={thumbEntries}
                   currentId={currentId}
@@ -442,33 +445,13 @@ export default function Home() {
             )}
           </>
         )}
-
-        {error && (
-          <p
-            role="alert"
-            className="flex items-baseline gap-3 text-sm text-[var(--foreground)]"
-          >
-            <span className="text-[10px] uppercase tracking-[0.2em] text-[var(--accent)]">
-              error
-            </span>
-            <span className="flex-1">— {error}</span>
-            <button
-              type="button"
-              onClick={() => setError(null)}
-              aria-label="dismiss error"
-              className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)] hover:text-[var(--foreground)]"
-            >
-              dismiss
-            </button>
-          </p>
-        )}
       </main>
 
       {current && result && (
         <div className="stagger-in stagger-7 sticky bottom-0 z-10 flex flex-col gap-3 border-t border-[var(--border)] bg-[var(--background)] py-4">
-          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
-            <ModeToggle value={viewMode} onChange={setViewMode} disabled={!result} />
-            <div className="flex items-center gap-4">
+          <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+            <div className="flex items-center gap-4 sm:gap-6">
+              <ModeToggle value={viewMode} onChange={setViewMode} disabled={!result} />
               {regionZones !== null && (
                 <button
                   type="button"
@@ -494,6 +477,26 @@ export default function Home() {
                 )}
               </p>
             </div>
+            {/* Export stencil — the printable artifact the tool exists to
+                produce. Typographic action in the same family as the header's
+                `by neil ↗` link: foreground color (not muted) marks it as
+                primary; the arrow + hover nudge carry the affordance. */}
+            <button
+              type="button"
+              onClick={() => setStencilOpen(true)}
+              disabled={!current?.analyzed}
+              className="group inline-flex shrink-0 items-baseline gap-1.5 text-xs uppercase tracking-[0.2em] text-[var(--foreground)] transition-colors hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:text-[var(--muted)] disabled:hover:text-[var(--muted)]"
+            >
+              <span className="underline underline-offset-4 decoration-1 decoration-[var(--muted)] transition-colors group-hover:decoration-[var(--accent)] group-disabled:decoration-[var(--border)]">
+                export stencil
+              </span>
+              <span
+                aria-hidden="true"
+                className="transition-transform group-hover:-translate-y-px group-hover:translate-x-px"
+              >
+                ↗
+              </span>
+            </button>
           </div>
           <div
             className={`transition-opacity duration-300 ease-out ${
@@ -512,7 +515,16 @@ export default function Home() {
         </div>
       )}
 
-      <footer className="stagger-in stagger-8 mt-auto flex flex-wrap items-center justify-center gap-x-2 gap-y-1 border-t border-[var(--border)] pt-6 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
+      {stencilOpen && current?.analyzed && (
+        <StencilPanel
+          result={current.analyzed.result}
+          zoneIndexData={current.analyzed.zoneIndexData}
+          filenameHint={current.file.name}
+          onClose={() => setStencilOpen(false)}
+        />
+      )}
+
+      <footer className="stagger-in stagger-8 mt-auto flex shrink-0 flex-wrap items-center justify-center gap-x-2 gap-y-1 border-t border-[var(--border)] pt-6 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
         <span>value-study reference</span>
         <span aria-hidden="true">·</span>
         <Link
@@ -531,6 +543,28 @@ export default function Home() {
           view source
         </a>
       </footer>
+
+      {/* Floating toast: kept out of the flex column so a transient error
+          never resizes the canvas or forces the no-scroll layout to overflow. */}
+      {error && (
+        <p
+          role="alert"
+          className="fixed bottom-4 left-1/2 z-40 flex max-w-[90vw] -translate-x-1/2 items-baseline gap-3 border border-[var(--border)] bg-[var(--background)] px-4 py-2 text-sm text-[var(--foreground)] shadow-lg"
+        >
+          <span className="text-[10px] uppercase tracking-[0.2em] text-[var(--accent)]">
+            error
+          </span>
+          <span className="flex-1">— {error}</span>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            aria-label="dismiss error"
+            className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)] hover:text-[var(--foreground)]"
+          >
+            dismiss
+          </button>
+        </p>
+      )}
     </div>
   );
 }

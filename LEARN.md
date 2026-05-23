@@ -239,3 +239,34 @@ The web worker holds at most one image's grayscale + histogram. Track `workerLoa
 - **Resource closures for `ImageBitmap` / GPU-backed handles**: `.close()` is mandatory for GC of GPU memory; forgetting it leaks until tab close. Each setter that replaces a bitmap must close the prev unless someone else owns it.
 - **LRU vs chronological eviction**: chose chronological (newest-first, evict tail) for simplicity. A user pinging back-and-forth between two old entries while uploading new ones will eventually lose them. LRU would fix that at the cost of order-reshuffling UX.
 - **The `crypto.randomUUID()` fallback**: still need a fallback for older Safari / non-secure contexts. The `Date.now() + Math.random()` shim is fine for client-only id-of-a-session-thing but would be wrong for anything cross-machine.
+
+## 15. tattoo-stencil export (marching squares → RDP → SVG/PNG)
+
+Extended the app so the zone segmentation can be exported as a printable tattoo stencil — outlines only, one line style per zone boundary, downloadable as SVG (vector) or a 300-DPI PNG for thermal stencil paper.
+
+**What we did.**
+- New `frontend/app/lib/algorithms/contours.ts`: marching squares over the binary mask `zone[p] >= k` for each `k ∈ [1, n-1]`, padded by a 1px sentinel ring so edge-touching regions become closed loops. Yields `n-1` boundary sets; each segment has one unambiguous "darker side" → one unambiguous style.
+- RDP simplification per polyline with `epsilon = max(0.75, longestEdgePx / 1400)`. Closed loops are split at the vertex farthest from `points[0]` first — naïve RDP on closed loops collapses (line(a,b) is degenerate when a==b).
+- Style table interpolates stroke width 0.35 → 1.4 SVG units across levels and gates dash pattern by `t < 0.2 → dotted`, `< 0.4 → dashed`, `else solid`. Stroke floor of 0.3mm at the export DPI — anything thinner doesn't transfer on thermal paper.
+- SVG built as a string (not DOM). PNG rasterized straight onto an `OffscreenCanvas` at `physicalSize × 300 DPI`, long edge capped at 4000px.
+- Lives in a slide-up sheet (`StencilPanel.tsx`) anchored to the bottom bar — preserves the AnalyzedCanvas framing the artist uses for value comparison.
+
+**Decision: dropped PDF, kept SVG + PNG.** First cut exported PDF via `pdf-lib`. Two problems: a coordinate double-flip (we pre-flipped Y, `drawSvgPath` flips again) shipped a blank page, and PDF stroke rendering muddied fine linework. Replaced with a direct canvas raster — fewer moving parts, no 250kb dependency. To keep PDF's "print at actual size" guarantee, the PNG gets a hand-written **`pHYs` chunk** (pixels-per-metre + CRC-32, inserted right after IHDR at byte 33) so the OS reads its true print resolution.
+
+**Tradeoff: classical contours stairstep on fine anatomy.** Hair, eyelashes, fabric edges follow the discrete zone grid and read jagged. Designed-in seam (`ContourSource` interface in `lib/stencil/types.ts`) lets a future learned edge model (HED via onnxruntime-web) replace `extractZoneContours` without touching styles or render.
+
+**Tradeoff: contours run on the main thread, not the worker.** `zoneIndexData` is already transferred out of the worker, so re-entering it would re-pay the transfer cost. ~60ms on 1024px @ N=7 is below the perceived lag threshold, and only runs when the panel opens (not on every N change).
+
+**Concepts to revisit.** marching squares, saddle-case disambiguation, Ramer–Douglas–Peucker, SVG `stroke-dasharray`/`shape-rendering`, PNG chunk structure (`pHYs`, CRC-32, IHDR ordering), `OffscreenCanvas.convertToBlob`, HED edge detection, onnxruntime-web.
+
+## 16. stencil PNG mismatch — the absolute stroke floor was wrong
+
+The exported PNG looked nothing like the on-screen SVG preview: every line was the same bloated weight and all dashed/dotted hairlines had merged into solid lines.
+
+**Root cause: a flat minimum-stroke clamp applied to *all* strokes.** PNG export had `ctx.lineWidth = Math.max(minStrokePx, strokeWidth * scale)` where `minStrokePx = 0.3mm` at the export DPI (~3.5px at 300 DPI). Contours live at ≤1200px (the analysis downscale cap), so for a 4in/300-DPI export `scale ≈ 1`, putting real stroke widths at ~0.5–1.8px — *all below the 3.5px floor*. So every line clamped to the same value: weight hierarchy gone, lines bloated. Dashes died as a side effect — a 0.4px dash drawn with a 3.5px **round cap** becomes a ~4px blob that swallows the 1.2px gap. The SVG preview had no floor, so the two diverged.
+
+**Fix.** Removed the floor entirely. PNG strokes and dashes now scale by exactly `scale` and nothing else, so the raster is a pixel-faithful enlargement of the SVG. The "0.3mm doesn't transfer on thermal paper" intent (§15) was misapplied: a per-stroke *absolute* floor flattens the weight curve. The right place for a thinness guarantee, if ever needed, is the *style table* (raise `minW`), not the rasterizer — that keeps preview and export in sync.
+
+**Also: raised export to 600 DPI**, long-edge cap 4000→6000px. 600 DPI is the line-art / thermal-stencil standard and gives artists more pixels to resize against in Procreate. The geometry is vector polylines, so rendering bigger stays crisp — it doesn't invent detail beyond the 1200px contour source.
+
+**Concept to revisit.** *Render-parity bugs*: when one path renders a preview and another renders the export, any transform applied to only one (a clamp, a flip, a cap) silently desyncs them. The fix is to push shared decisions upstream of both renderers (here: into the style table) so neither renderer can diverge.

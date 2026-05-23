@@ -29,10 +29,18 @@ body {
 .tonal-slider {
   appearance: none;
   -webkit-appearance: none;
-  height: 2px;
-  background: var(--border);
+  /* Tall enough to fully contain the 14px thumb + 1px focus ring so the knob
+     isn't clipped at the track ends. The visible track is drawn by the
+     ::-webkit-slider-runnable-track / ::-moz-range-track pseudo-elements. */
+  height: 16px;
+  background: transparent;
   outline: none;
   cursor: pointer;
+}
+
+.tonal-slider::-webkit-slider-runnable-track {
+  height: 2px;
+  background: var(--border);
 }
 
 .tonal-slider::-webkit-slider-thumb {
@@ -40,6 +48,8 @@ body {
   -webkit-appearance: none;
   height: 14px;
   width: 14px;
+  /* Center the thumb on the 2px track: (2 - 14) / 2. */
+  margin-top: -6px;
   border-radius: 9999px;
   background: var(--foreground);
   border: 2px solid var(--background);

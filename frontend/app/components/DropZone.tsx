@@ -52,7 +52,7 @@ export function DropZone({ onFile }: Props) {
         setIsOver(false);
         handleFiles(e.dataTransfer.files);
       }}
-      className="dropzone flex h-64 w-full flex-col items-center justify-center gap-3"
+      className="dropzone flex h-full min-h-0 w-full flex-col items-center justify-center gap-3"
     >
       <p className="dropzone-label font-serif text-xl text-[var(--foreground)]">
         drop an image, or click to choose
